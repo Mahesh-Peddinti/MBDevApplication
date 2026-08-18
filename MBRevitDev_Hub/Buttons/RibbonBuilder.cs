@@ -43,15 +43,15 @@ namespace MBRevitDev_Hub.Buttons
                 RibbonButtonFactory.Create(
                     new RibbonButtonInfo
                     {
-                        Name = "Theme",
+                        Name = "ClashTool",
 
-                        Text = "Theme",
+                        Text = "ClashTool",
 
                         CommandClass =
                             "MBRevitDev_Hub.CableTrayClashDetectionCommand",
 
                         Tooltip =
-                            "Creates Bus Duct",
+                            "Resolve Cable Tray Clashes",
 
                         LargeImage = "ToolBox_32.png",
 
