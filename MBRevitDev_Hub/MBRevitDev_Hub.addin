@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+    <AddIn Type="Application">
+    <Name>MBRevitDev_Hub</Name>
+    <Assembly>MBRevitDev_Hub/MBRevitDev_Hub.dll</Assembly>
+    <FullClassName>MBRevitDev_Hub.AddInApplication</FullClassName>
+    <ClientId>f82a4b8f-ad38-489f-a00b-fcb10bd300ae</ClientId>
+    <VendorId>MBDevToolDevelopents</VendorId>
+    <VendorDescription> MBDEVInfo.com</VendorDescription>
+  </AddIn>
+</RevitAddIns>

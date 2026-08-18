@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="R2020" />
+    <BuildType Name="R2021" />
+    <BuildType Name="R2022" />
+    <BuildType Name="R2023" />
+    <BuildType Name="R2024" />
+    <BuildType Name="R2025" />
+    <BuildType Name="R2026" />
+    <BuildType Name="R2027" />
+    <BuildType Name="Release" />
+  </Configurations>
+  <Project Path="MBRevitDev_Hub/MBRevitDev_Hub.csproj" />
+</Solution>
