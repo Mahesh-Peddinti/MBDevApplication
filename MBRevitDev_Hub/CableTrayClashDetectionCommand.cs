@@ -2,6 +2,7 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Electrical;
 using Autodesk.Revit.UI;
+using MBRevitDev_Hub.LogDetails;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -682,6 +683,11 @@ namespace MBRevitDev_Hub
                 EntryStation = entryStation,
                 ExitStation = exitStation
             };
+            ClashResolveToolLogDetails.Info($"Route Path station points Details)" +
+                $"P0: {p0}"+"\n"+
+                $"P1: {p1}" + "\n" +
+                $"P2: {p2}" + "\n" +
+                $"P3: {p3}");
 
             return true;
         }

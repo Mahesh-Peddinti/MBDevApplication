@@ -34,9 +34,9 @@ namespace MBRevitDev_Hub.Buttons
                         Tooltip =
                             "Creates Bus Duct",
 
-                        LargeImage = "ToolBox_32.png",
+                        LargeImage = "MBDev_Info_16.png",
 
-                        SmallImage = "ToolBox_16.png"
+                        SmallImage = "MBDev_Info_32.png"
                     }));
 
             panel.AddItem(
@@ -53,9 +53,9 @@ namespace MBRevitDev_Hub.Buttons
                         Tooltip =
                             "Resolve Cable Tray Clashes",
 
-                        LargeImage = "ToolBox_32.png",
+                        LargeImage = "ToolBox_16.png",
 
-                        SmallImage = "ToolBox_16.png"
+                        SmallImage = "ToolBox_32.png"
                     }));
             panel.AddItem(
                 RibbonButtonFactory.Create(
