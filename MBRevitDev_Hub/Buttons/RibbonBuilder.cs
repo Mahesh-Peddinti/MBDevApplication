@@ -66,7 +66,7 @@ namespace MBRevitDev_Hub.Buttons
                         Text = "Cable Tray",
 
                         CommandClass =
-                            "MBRevitDev_Hub.AddInCommand",
+                            "MBRevitDev_Hub.AutoRerouteClashesCommand",
 
                         Tooltip =
                             "Creates Cable Tray ",

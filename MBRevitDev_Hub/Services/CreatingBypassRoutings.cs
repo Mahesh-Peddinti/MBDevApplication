@@ -29,7 +29,7 @@ namespace MBRevitDev_Hub.Services
         ///           P1 -------> P2 (peak horizontal)
         ///           P2 --45°--> P3 (descent end)
         /// </summary>
-        public bool TryBuild4PointRoute(
+        public bool TryBuildRoutePoints(
                                 ClashGroupDTOs group,
                                 CableTray tray,
                                 out RouteDefinitionDTOs route)

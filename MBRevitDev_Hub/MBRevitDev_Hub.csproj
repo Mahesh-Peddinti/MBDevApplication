@@ -227,23 +227,32 @@
     <ItemGroup>
         <Compile Include="AddInApplication.cs" />
         <Compile Include="AddInCommand.cs" />
+        <Compile Include="AutoRerouteClashesCommand.cs" />
         <Compile Include="Buttons\ImageLoader.cs" />
         <Compile Include="Buttons\RibbonBuilder.cs" />
         <Compile Include="Buttons\RibbonButtonFactory.cs" />
         <Compile Include="Buttons\RibbonButtonInfo.cs" />
         <Compile Include="CableTrayClashDetectionCommand.cs" />
+        <Compile Include="Core\ClashClusterEngine.cs" />
+        <Compile Include="Core\ClashDetector.cs" />
+        <Compile Include="Core\MepPointBuilder.cs" />
+        <Compile Include="Core\MepRebuilder.cs" />
         <Compile Include="DTOs\ClashGroupDTOs.cs" />
         <Compile Include="DTOs\ClashInfoDTOs.cs" />
         <Compile Include="DTOs\RouteDefinitionDTOs.cs" />
         <Compile Include="DTOs\RouteSettingDTOs.cs" />
         <Compile Include="LogDetails\ClashResolveToolLogDetails.cs" />
         <Compile Include="MBDevInfoCommand.cs" />
+        <Compile Include="Models\ClashModels.cs" />
+        <Compile Include="Models\RerouteConfig.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
         <Compile Include="Services\ClashDetectionServices.cs" />
         <Compile Include="Services\CreatingBypassRoutings.cs" />
         <Compile Include="UI\ViewModels\MainViewModel.cs" />
         <Compile Include="UI\Views\MainWindow.xaml.cs" />
         <Compile Include="Utilities\GeometricUtilities.cs" />
+        <Compile Include="Utils\SelectionFilters.cs" />
+        <Compile Include="Utils\WarningSwallower.cs" />
         <EmbeddedResource Include="C:\Users\Mahesh-Bhagya\Downloads\ToolBox_16.png" Link="Resources\ToolBox_16.png" />
         <EmbeddedResource Include="C:\Users\Mahesh-Bhagya\Downloads\ToolBox_32.png" Link="Resources\ToolBox_32.png" />
         <EmbeddedResource Include="C:\Users\Mahesh-Bhagya\Downloads\icons8-info-flat\MBDev_Info_16.png" Link="Resources\MBDev_Info_16.png" />
@@ -256,7 +265,6 @@
       <Folder Include="Command\" />
       <Folder Include="BusinessLogics\" />
       <Folder Include="Resources\" />
-      <Folder Include="UI\Models\" />
     </ItemGroup>
     <Target Name="AfterClean">
         <Delete Files="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\MBRevitDev_Hub.addin" />
