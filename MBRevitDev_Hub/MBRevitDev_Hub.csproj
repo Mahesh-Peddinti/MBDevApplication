@@ -246,6 +246,7 @@
         <Compile Include="Models\ClashModels.cs" />
         <Compile Include="Models\RerouteConfig.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
+        <Compile Include="ReRouteCableTrayFittingCommand.cs" />
         <Compile Include="Services\ClashDetectionServices.cs" />
         <Compile Include="Services\CreatingBypassRoutings.cs" />
         <Compile Include="UI\ViewModels\MainViewModel.cs" />

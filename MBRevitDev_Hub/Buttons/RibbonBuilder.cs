@@ -75,6 +75,24 @@ namespace MBRevitDev_Hub.Buttons
 
                         SmallImage = "ToolBox_16.png"
                     }));
+            panel.AddItem(
+                RibbonButtonFactory.Create(
+                    new RibbonButtonInfo
+                    {
+                        Name = "FittingRouter",
+
+                        Text = "Fitting\nRouter",
+
+                        CommandClass =
+                            "MBRevitDev_Hub.ReRouteCableTrayFittingCommand",
+
+                        Tooltip =
+                            "Creates Cable Tray fitting Routing ",
+
+                        LargeImage = "ToolBox_16.png",
+
+                        SmallImage = "ToolBox_32.png"
+                    }));
         }
     }
 }
