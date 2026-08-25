@@ -1,0 +1,487 @@
+<Page x:Class="RevitMepAutomation.Views.ClashResolutionDockablePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:controls="clr-namespace:RevitMepAutomation.Controls"
+      xmlns:converters="clr-namespace:RevitMepAutomation.Common.Converters"
+      xmlns:vm="clr-namespace:RevitMepAutomation.ViewModels"
+      mc:Ignorable="d" 
+      d:DesignHeight="700" d:DesignWidth="900"
+      Title="DAR – Clash Resolution Tool"
+      Background="{DynamicResource WindowBgBrush}">
+
+    <Page.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/RevitMepAutomation;component/Themes/DarkTheme.xaml" />
+                <ResourceDictionary Source="/RevitMepAutomation;component/Themes/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Converters -->
+            <converters:StatusToBrushConverter x:Key="StatusToBrushConverter" />
+            <converters:StatusToTextConverter x:Key="StatusToTextConverter" />
+            <converters:DirectionToBoolConverter x:Key="DirectionToBoolConverter" />
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+            <converters:AngleToStringConverter x:Key="AngleToStringConverter" />
+        </ResourceDictionary>
+    </Page.Resources>
+
+    <Grid>
+        <!-- Main Application Shell -->
+        <Grid Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />  <!-- Header Bar -->
+                <RowDefinition Height="*" />     <!-- Body (Clashes List + Preview & Controls) -->
+                <RowDefinition Height="Auto" />  <!-- Footer Action Bar -->
+            </Grid.RowDefinitions>
+
+            <!-- 1. HEADER BAR -->
+            <Grid Grid.Row="0" Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Tool Title & Version -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="32" Height="32"
+                            Background="{DynamicResource AccentPrimaryBrush}"
+                            CornerRadius="8"
+                            Margin="0,0,12,0">
+                        <TextBlock Text="⚡"
+                                   FontSize="16"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="DAR – Clash Resolution Tool"
+                                   Style="{DynamicResource WindowTitleTextStyle}"
+                                   FontSize="18" />
+                        <TextBlock Text="Intelligent MEP Clash Rerouting &amp; Clearance Verification"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Top Right Utility Controls (Theme Toggle & Info Details) -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Theme Palette Icon -->
+                    <Border Width="32" Height="32"
+                            Background="{DynamicResource CardBgLightBrush}"
+                            BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Margin="0,0,8,0"
+                            ToolTip="Theme Color Mode">
+                        <TextBlock Text="🎨"
+                                   FontSize="14"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+
+                    <!-- Theme Toggle Switch -->
+                    <CheckBox IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"
+                              Style="{DynamicResource ToggleSwitchStyle}"
+                              ToolTip="Toggle Dark / Light Theme"
+                              Margin="0,0,10,0" />
+
+                    <!-- Info Details Button (i) -->
+                    <Button Command="{Binding ToggleInfoCommand}"
+                            Style="{DynamicResource IconButton}"
+                            ToolTip="Tool Information &amp; Diagnostics"
+                            Width="32" Height="32">
+                        <Border Background="{DynamicResource AccentPrimaryBrush}"
+                                Width="20" Height="20"
+                                CornerRadius="10">
+                            <TextBlock Text="i"
+                                       Foreground="#FFFFFF"
+                                       FontWeight="Bold"
+                                       FontSize="12"
+                                       FontFamily="Georgia"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- 2. MAIN BODY (Split Left List & Right Preview/Params) -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="280" MinWidth="220" MaxWidth="380" /> <!-- Left: Clashes & Status -->
+                    <ColumnDefinition Width="12" />                                <!-- Splitter Gap -->
+                    <ColumnDefinition Width="*" MinWidth="450" />                   <!-- Right: Preview + Params -->
+                </Grid.ColumnDefinitions>
+
+                <!-- LEFT PANEL: Clashes & Status Master List -->
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SidebarBgBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" /> <!-- Column Header -->
+                            <RowDefinition Height="*" />    <!-- List of Clashes -->
+                            <RowDefinition Height="Auto" /> <!-- Quick Search / Filter -->
+                        </Grid.RowDefinitions>
+
+                        <!-- Column Headers -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource HeaderBgBrush}"
+                                BorderBrush="{DynamicResource CardBorderBrush}"
+                                BorderThickness="0,0,0,1.5"
+                                Padding="8,8"
+                                Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="100" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Clashes" Style="{DynamicResource SectionHeaderTextStyle}" />
+                                <TextBlock Grid.Column="1" Text="Status" Style="{DynamicResource SectionHeaderTextStyle}" HorizontalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Clashes ListBox -->
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding Clashes}"
+                                 SelectedItem="{Binding SelectedClash, Mode=TwoWay}"
+                                 ItemContainerStyle="{DynamicResource ClashListBoxItemStyle}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="2,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Clash Name & Category -->
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Text="{Binding ObstacleCategory}"
+                                                       FontSize="10"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       MaxWidth="130" />
+                                        </StackPanel>
+
+                                        <!-- Status Badge (Resolved / Not Resolved) -->
+                                        <Border Grid.Column="1"
+                                                CornerRadius="12"
+                                                Padding="10,3"
+                                                VerticalAlignment="Center"
+                                                Background="{Binding Status, Converter={StaticResource StatusToBrushConverter}}">
+                                            <TextBlock Text="{Binding Status, Converter={StaticResource StatusToTextConverter}}"
+                                                       FontSize="11"
+                                                       FontWeight="Bold"
+                                                       Foreground="#FFFFFF" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Bottom List Status Counter -->
+                        <Border Grid.Row="2"
+                                Background="{DynamicResource CardBgLightBrush}"
+                                BorderBrush="{DynamicResource CardBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="8,6"
+                                Margin="0,8,0,0">
+                            <Grid>
+                                <TextBlock Text="{Binding ProgressSummary}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Command="{Binding PreviousClashCommand}"
+                                            Content="▲"
+                                            Width="22" Height="22"
+                                            Background="Transparent"
+                                            Foreground="{DynamicResource TextPrimaryBrush}"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            ToolTip="Previous Clash (Up)" />
+                                    <Button Command="{Binding NextClashCommand}"
+                                            Content="▼"
+                                            Width="22" Height="22"
+                                            Background="Transparent"
+                                            Foreground="{DynamicResource TextPrimaryBrush}"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            ToolTip="Next Clash (Down)" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- RIGHT PANEL: Preview Viewport + Custom Parameters + Routing Direction -->
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />  <!-- Section Header -->
+                        <RowDefinition Height="*" MinHeight="260" /> <!-- Clash Preview Viewport -->
+                        <RowDefinition Height="Auto" />  <!-- Parameter Cards -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Clash Preview Header -->
+                    <Border Grid.Row="0"
+                            Background="{DynamicResource HeaderBgBrush}"
+                            BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="1,1,1,0"
+                            CornerRadius="8,8,0,0"
+                            Padding="12,8">
+                        <Grid>
+                            <TextBlock Text="Clash Preview"
+                                       Style="{DynamicResource SectionHeaderTextStyle}"
+                                       FontSize="14" />
+                            <TextBlock Text="{Binding SelectedClashName, StringFormat='Active: {0}'}"
+                                       HorizontalAlignment="Right"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AccentPrimaryBrush}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Interactive Live Clash Preview Control -->
+                    <Border Grid.Row="1"
+                            BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="1,0,1,1"
+                            CornerRadius="0,0,8,8">
+                        <controls:ClashPreviewControl x:Name="PreviewViewport"
+                                                      BendRadius="{Binding SelectedClash.BendRadiusMm, Mode=OneWay, FallbackValue=300}"
+                                                      BendAngle="{Binding SelectedClash.BendAngleDeg, Mode=OneWay, FallbackValue=45}"
+                                                      OffsetSpan="{Binding SelectedClash.OffsetSpanMm, Mode=OneWay, FallbackValue=500}"
+                                                      TopClearance="{Binding SelectedClash.TopClearanceMm, Mode=OneWay, FallbackValue=50}"
+                                                      Direction="{Binding SelectedClash.Direction, Mode=OneWay, FallbackValue=Up}"
+                                                      Status="{Binding SelectedClash.Status, Mode=OneWay, FallbackValue=NotResolved}"
+                                                      ElementName="{Binding SelectedClash.ElementCategory, Mode=OneWay, FallbackValue='Cable Tray'}"
+                                                      ObstacleName="{Binding SelectedClash.ObstacleCategory, Mode=OneWay, FallbackValue='HVAC Duct'}" />
+                    </Border>
+
+                    <!-- Bottom Controls: Custom Parameters (Left) + Routing Direction (Right) -->
+                    <Grid Grid.Row="2" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.4*" /> <!-- Custom Parameters Card -->
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />    <!-- Routing Direction & Actions Card -->
+                        </Grid.ColumnDefinitions>
+
+                        <!-- CUSTOM PARAMETERS CARD -->
+                        <Border Grid.Column="0" Style="{DynamicResource ParameterCardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Card Header -->
+                                <TextBlock Grid.Row="0"
+                                           Text="Custom Parameters"
+                                           FontWeight="Bold"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,0,0,10" />
+
+                                <!-- Parameters Form Grid -->
+                                <Grid Grid.Row="1">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- 1. Bend Radius -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="Bend Radius"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,4" />
+                                    <controls:NumericStepper Grid.Row="0" Grid.Column="1"
+                                                             Value="{Binding SelectedClash.BendRadiusMm, Mode=TwoWay, FallbackValue=300}"
+                                                             Minimum="50" Maximum="2000" Step="25"
+                                                             UnitSuffix="mm"
+                                                             Margin="0,4" />
+
+                                    <!-- 2. Bend Angle -->
+                                    <TextBlock Grid.Row="1" Grid.Column="0"
+                                               Text="Bend Angle"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,4" />
+                                    <Grid Grid.Row="1" Grid.Column="1" Margin="0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <controls:NumericStepper Grid.Column="0"
+                                                                 Value="{Binding SelectedClash.BendAngleDeg, Mode=TwoWay, FallbackValue=45}"
+                                                                 Minimum="15" Maximum="90" Step="5"
+                                                                 UnitSuffix="°" />
+                                        <!-- Quick Presets for Angle -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                                            <Button Content="30°"
+                                                    Command="{Binding QuickAnglePresetCommand}"
+                                                    CommandParameter="30"
+                                                    Style="{DynamicResource ModernButtonStyle}"
+                                                    Background="{DynamicResource CardBgLightBrush}"
+                                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                                    Height="28" Padding="6,0" Margin="2,0" FontSize="11" />
+                                            <Button Content="45°"
+                                                    Command="{Binding QuickAnglePresetCommand}"
+                                                    CommandParameter="45"
+                                                    Style="{DynamicResource ModernButtonStyle}"
+                                                    Background="{DynamicResource CardBgLightBrush}"
+                                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                                    Height="28" Padding="6,0" Margin="2,0" FontSize="11" />
+                                            <Button Content="90°"
+                                                    Command="{Binding QuickAnglePresetCommand}"
+                                                    CommandParameter="90"
+                                                    Style="{DynamicResource ModernButtonStyle}"
+                                                    Background="{DynamicResource CardBgLightBrush}"
+                                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                                    Height="28" Padding="6,0" Margin="2,0" FontSize="11" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- 3. Offset Span -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                               Text="Offset Span"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,4" />
+                                    <controls:NumericStepper Grid.Row="2" Grid.Column="1"
+                                                             Value="{Binding SelectedClash.OffsetSpanMm, Mode=TwoWay, FallbackValue=500}"
+                                                             Minimum="100" Maximum="3000" Step="50"
+                                                             UnitSuffix="mm"
+                                                             Margin="0,4" />
+
+                                    <!-- 4. Top Clearance -->
+                                    <TextBlock Grid.Row="3" Grid.Column="0"
+                                               Text="Top Clearance"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,4" />
+                                    <controls:NumericStepper Grid.Row="3" Grid.Column="1"
+                                                             Value="{Binding SelectedClash.TopClearanceMm, Mode=TwoWay, FallbackValue=50}"
+                                                             Minimum="10" Maximum="500" Step="10"
+                                                             UnitSuffix="mm"
+                                                             Margin="0,4" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <!-- ROUTING DIRECTION & ACTION BUTTONS CARD -->
+                        <Border Grid.Column="2" Style="{DynamicResource ParameterCardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Card Header -->
+                                <TextBlock Grid.Row="0"
+                                           Text="Routing Direction"
+                                           FontWeight="Bold"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           Margin="0,0,0,8" />
+
+                                <!-- Direction Options (Up / Down) -->
+                                <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,4">
+                                    <RadioButton Content="Up (Bypass Over Obstacle)"
+                                                 GroupName="RoutingDir"
+                                                 IsChecked="{Binding SelectedClash.Direction, Converter={StaticResource DirectionToBoolConverter}, ConverterParameter=Up, Mode=TwoWay, FallbackValue=True}"
+                                                 Style="{DynamicResource DirectionRadioButtonStyle}"
+                                                 Margin="0,4" />
+                                    <RadioButton Content="Down (Bypass Under Obstacle)"
+                                                 GroupName="RoutingDir"
+                                                 IsChecked="{Binding SelectedClash.Direction, Converter={StaticResource DirectionToBoolConverter}, ConverterParameter=Down, Mode=TwoWay, FallbackValue=False}"
+                                                 Style="{DynamicResource DirectionRadioButtonStyle}"
+                                                 Margin="0,4" />
+                                </StackPanel>
+
+                                <!-- Action Buttons: Cancel & Accept -->
+                                <Grid Grid.Row="2" Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Cancel Button -->
+                                    <Button Grid.Column="0"
+                                            Content="Cancel"
+                                            Command="{Binding CancelCommand}"
+                                            Style="{DynamicResource CancelButtonStyle}" />
+
+                                    <!-- Accept Button -->
+                                    <Button Grid.Column="2"
+                                            Content="Accept"
+                                            Command="{Binding AcceptCommand}"
+                                            Style="{DynamicResource AcceptButtonStyle}" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Grid>
+
+            <!-- 3. FOOTER ACTION BAR -->
+            <Grid Grid.Row="2" Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Status Text Notification -->
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource AccentPrimaryBrush}" />
+                </StackPanel>
+
+                <!-- FINISH Button -->
+                <Button Grid.Column="1"
+                        Content="FINISH"
+                        Command="{Binding FinishCommand}"
+                        Style="{DynamicResource FinishButtonStyle}" />
+            </Grid>
+        </Grid>
+
+        <!-- 4. INFO / DIAGNOSTICS FLYOUT MODAL (OVERLAY) -->
+        <Grid Background="#7F000000"
+              Visibility="{Binding IsInfoOpen, Converter={StaticResource BoolToVisibilityConverter}}"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch">
+            <controls:InfoFlyoutControl HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Width="400"
+                                        CloseRequested="{Binding ToggleInfoCommand.Execute, Mode=OneWay}" />
+        </Grid>
+    </Grid>
+</Page>

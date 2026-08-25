@@ -1,0 +1,75 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Dark Theme Color Palette -->
+    <Color x:Key="WindowBgColor">#18191E</Color>
+    <Color x:Key="HeaderBgColor">#121316</Color>
+    <Color x:Key="SidebarBgColor">#1E2026</Color>
+    <Color x:Key="CardBgColor">#252830</Color>
+    <Color x:Key="CardBgLightColor">#2E323D</Color>
+    <Color x:Key="CardBorderColor">#3B404E</Color>
+    <Color x:Key="DividerColor">#0284C7</Color>
+
+    <Color x:Key="TextPrimaryColor">#F8FAFC</Color>
+    <Color x:Key="TextSecondaryColor">#94A3B8</Color>
+    <Color x:Key="TextMutedColor">#64748B</Color>
+
+    <!-- Interactive & Accent -->
+    <Color x:Key="AccentPrimaryColor">#38BDF8</Color>
+    <Color x:Key="AccentHoverColor">#0EA5E9</Color>
+    <Color x:Key="AccentPressColor">#0284C7</Color>
+    <Color x:Key="SelectionBgColor">#334155</Color>
+
+    <!-- Status Badges -->
+    <Color x:Key="ResolvedBgColor">#14532D</Color>
+    <Color x:Key="ResolvedBorderColor">#22C55E</Color>
+    <Color x:Key="ResolvedTextColor">#86EFAC</Color>
+
+    <Color x:Key="NotResolvedBgColor">#7F1D1D</Color>
+    <Color x:Key="NotResolvedBorderColor">#EF4444</Color>
+    <Color x:Key="NotResolvedTextColor">#FCA5A5</Color>
+
+    <!-- Controls -->
+    <Color x:Key="InputBgColor">#1B1D23</Color>
+    <Color x:Key="InputBorderColor">#475569</Color>
+    <Color x:Key="InputFocusBorderColor">#38BDF8</Color>
+    <Color x:Key="PreviewBgColor">#0D1117</Color>
+    <Color x:Key="ParamCardBgColor">#1F2430</Color>
+    <Color x:Key="ParamCardBorderColor">#38BDF8</Color>
+
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="WindowBgBrush" Color="{StaticResource WindowBgColor}" />
+    <SolidColorBrush x:Key="HeaderBgBrush" Color="{StaticResource HeaderBgColor}" />
+    <SolidColorBrush x:Key="SidebarBgBrush" Color="{StaticResource SidebarBgColor}" />
+    <SolidColorBrush x:Key="CardBgBrush" Color="{StaticResource CardBgColor}" />
+    <SolidColorBrush x:Key="CardBgLightBrush" Color="{StaticResource CardBgLightColor}" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource CardBorderColor}" />
+    <SolidColorBrush x:Key="DividerBrush" Color="{StaticResource DividerColor}" />
+
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+
+    <SolidColorBrush x:Key="AccentPrimaryBrush" Color="{StaticResource AccentPrimaryColor}" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
+    <SolidColorBrush x:Key="AccentPressBrush" Color="{StaticResource AccentPressColor}" />
+    <SolidColorBrush x:Key="SelectionBgBrush" Color="{StaticResource SelectionBgColor}" />
+
+    <SolidColorBrush x:Key="ResolvedBgBrush" Color="{StaticResource ResolvedBgColor}" />
+    <SolidColorBrush x:Key="ResolvedBorderBrush" Color="{StaticResource ResolvedBorderColor}" />
+    <SolidColorBrush x:Key="ResolvedTextBrush" Color="{StaticResource ResolvedTextColor}" />
+
+    <SolidColorBrush x:Key="NotResolvedBgBrush" Color="{StaticResource NotResolvedBgColor}" />
+    <SolidColorBrush x:Key="NotResolvedBorderBrush" Color="{StaticResource NotResolvedBorderColor}" />
+    <SolidColorBrush x:Key="NotResolvedTextBrush" Color="{StaticResource NotResolvedTextColor}" />
+
+    <SolidColorBrush x:Key="InputBgBrush" Color="{StaticResource InputBgColor}" />
+    <SolidColorBrush x:Key="InputBorderBrush" Color="{StaticResource InputBorderColor}" />
+    <SolidColorBrush x:Key="InputFocusBorderBrush" Color="{StaticResource InputFocusBorderColor}" />
+    <SolidColorBrush x:Key="PreviewBgBrush" Color="{StaticResource PreviewBgColor}" />
+    
+    <SolidColorBrush x:Key="ParamCardBgBrush" Color="{StaticResource ParamCardBgColor}" />
+    <SolidColorBrush x:Key="ParamCardBorderBrush" Color="{StaticResource ParamCardBorderColor}" />
+    <SolidColorBrush x:Key="ParamCardHeaderBgBrush" Color="#2A3245" />
+
+</ResourceDictionary>

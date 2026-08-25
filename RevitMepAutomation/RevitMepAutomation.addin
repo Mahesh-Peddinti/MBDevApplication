@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>DAR Clash Resolution Engine Application</Name>
+    <Assembly>RevitMepAutomation.dll</Assembly>
+    <AddInId>BFEDF3C2-3F31-4B0E-BE4A-C3E9DAD2B5D0</AddInId>
+    <FullClassName>RevitMepAutomation.App</FullClassName>
+    <VendorId>DAR_AUTOMATION</VendorId>
+    <VendorDescription>Computational MEP Clash Auto-Reroute Engine and Dockable Panel</VendorDescription>
+  </AddIn>
+
+  <AddIn Type="Command">
+    <Name>DAR Clash Resolution Dockable Panel</Name>
+    <Assembly>RevitMepAutomation.dll</Assembly>
+    <AddInId>DD630F44-5712-42B5-BCA4-C8B3BCAE137B</AddInId>
+    <FullClassName>RevitMepAutomation.Revit.ShowClashResolutionPaneCommand</FullClassName>
+    <VendorId>DAR_AUTOMATION</VendorId>
+    <VendorDescription>Show or Hide the DAR Clash Resolution Dockable Panel</VendorDescription>
+  </AddIn>
+
+  <AddIn Type="Command">
+    <Name>DAR Auto-Reroute Batch</Name>
+    <Assembly>RevitMepAutomation.dll</Assembly>
+    <AddInId>168D6EB8-769C-470A-8BED-205F120198B4</AddInId>
+    <FullClassName>RevitMepAutomation.Commands.AutoRerouteClashesCommand</FullClassName>
+    <VendorId>DAR_AUTOMATION</VendorId>
+    <VendorDescription>Batch Reroute Clashes</VendorDescription>
+  </AddIn>
+</RevitAddIns>
