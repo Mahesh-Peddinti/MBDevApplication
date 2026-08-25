@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "MBRevitDev_Hub": {
+      "commandName": "Project"
+    },
+    "RevitMepAutomation": {
+      "commandName": "Executable"
+    }
+  }
+}

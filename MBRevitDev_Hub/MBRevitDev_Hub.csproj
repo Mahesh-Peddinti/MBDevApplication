@@ -9,7 +9,7 @@
         <AppDesignerFolder>Properties</AppDesignerFolder>
         <RootNamespace>MBRevitDev_Hub</RootNamespace>
         <AssemblyName>MBRevitDev_Hub</AssemblyName>
-        <TargetFramework>net47</TargetFramework>
+		<TargetFramework>net8.0-windows</TargetFramework>
         <FileAlignment>512</FileAlignment>
         <Deterministic>true</Deterministic>
         <TargetFrameworkProfile />
@@ -25,7 +25,7 @@
         <Optimize>false</Optimize>
         <OutputPath>bin\R2020\</OutputPath>
         <DefineConstants>DEBUG;R2020</DefineConstants>
-        <TargetFramework>net47</TargetFramework>
+		<TargetFramework>net8.0-windows</TargetFramework>
         <AssemblyName>$(AssemblyName)</AssemblyName>
         <RevitVersion>2020</RevitVersion>
         <LangVersion>latest</LangVersion>
@@ -43,7 +43,7 @@
         <Optimize>false</Optimize>
         <OutputPath>bin\R2021\</OutputPath>
         <DefineConstants>DEBUG;R2021</DefineConstants>
-        <TargetFramework>net48</TargetFramework>
+		<TargetFramework>net8.0-windows</TargetFramework>
         <AssemblyName>$(AssemblyName)</AssemblyName>
         <RevitVersion>2021</RevitVersion>
         <WarningLevel>4</WarningLevel>
@@ -60,7 +60,7 @@
         <Optimize>false</Optimize>
         <OutputPath>bin\R2022\</OutputPath>
         <DefineConstants>DEBUG;R2022</DefineConstants>
-        <TargetFramework>net48</TargetFramework>
+        <TargetFramework>net8.0-windows</TargetFramework>
         <AssemblyName>$(AssemblyName)</AssemblyName>
         <RevitVersion>2022</RevitVersion>
         <WarningLevel>4</WarningLevel>
@@ -77,7 +77,7 @@
         <Optimize>false</Optimize>
         <OutputPath>bin\R2023\</OutputPath>
         <DefineConstants>DEBUG;R2023</DefineConstants>
-        <TargetFramework>net48</TargetFramework>
+        <TargetFramework>net8.0-windows</TargetFramework>
         <AssemblyName>$(AssemblyName)</AssemblyName>
         <RevitVersion>2023</RevitVersion>
         <WarningLevel>4</WarningLevel>
@@ -94,7 +94,7 @@
         <Optimize>false</Optimize>
         <OutputPath>bin\R2024\</OutputPath>
         <DefineConstants>DEBUG;R2024</DefineConstants>
-        <TargetFramework>net48</TargetFramework>
+        <TargetFramework>net8.0-windows</TargetFramework>
         <AssemblyName>$(AssemblyName)</AssemblyName>
         <RevitVersion>2024</RevitVersion>
         <WarningLevel>4</WarningLevel>
@@ -130,6 +130,7 @@
         <OutputPath>bin\R2026\</OutputPath>
         <DefineConstants>DEBUG;R2026</DefineConstants>
         <TargetFramework>net8.0-windows</TargetFramework>
+		<UseWPF>true</UseWPF>
         <AssemblyName>$(AssemblyName)</AssemblyName>
         <RevitVersion>2026</RevitVersion>
         <WarningLevel>4</WarningLevel>
@@ -148,6 +149,7 @@
         <OutputPath>bin\R2027\</OutputPath>
         <DefineConstants>DEBUG;R2027</DefineConstants>
         <TargetFramework>net10.0-windows</TargetFramework>
+		<UseWPF>true</UseWPF>
         <AssemblyName>$(AssemblyName)</AssemblyName>
         <RevitVersion>2027</RevitVersion>
         <WarningLevel>4</WarningLevel>
@@ -267,10 +269,7 @@
       <Folder Include="BusinessLogics\" />
       <Folder Include="Resources\" />
     </ItemGroup>
-    <ItemGroup>
-      <ProjectReference Include="..\RevitMepAutoReroute\RevitMepAutomation.csproj" />
-      <ProjectReference Include="C:\Users\Mahesh-Bhagya\.gemini\antigravity\scratch\RevitMepAutoReroute\RevitMepAutomation.csproj" />
-    </ItemGroup>
+    
     <Target Name="AfterClean">
         <Delete Files="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\MBRevitDev_Hub.addin" />
         <Delete Files="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\MBRevitDev_Hub.dll" />

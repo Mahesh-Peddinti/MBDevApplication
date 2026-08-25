@@ -2,9 +2,9 @@ using System;
 using System.Reflection;
 using Autodesk.Revit.UI;
 using RevitMepAutomation.Commands;
+using RevitMepAutomation.Revit;
 
-
-namespace RevitMepAutomation.Revit
+namespace RevitMepAutomation
 {
     public class App : IExternalApplication
     {
@@ -16,7 +16,7 @@ namespace RevitMepAutomation.Revit
                 DockablePaneRegistry.Register(application);
 
                 // 2. Create Ribbon Tab & Panel
-                string tabName = "Automation";
+                string tabName = "DAR Automation";
                 try { application.CreateRibbonTab(tabName); } catch { /* Tab may already exist */ }
 
                 RibbonPanel panel = application.CreateRibbonPanel(tabName, "Clash Resolution");
@@ -29,7 +29,7 @@ namespace RevitMepAutomation.Revit
                     assemblyPath,
                     typeof(ShowClashResolutionPaneCommand).FullName)
                 {
-                    ToolTip = "Opens the  Clash Resolution Tool Dockable Panel."
+                    ToolTip = "Opens the DAR Clash Resolution Tool Dockable Panel."
                 };
                 panel.AddItem(btnDockableData);
 
@@ -48,7 +48,7 @@ namespace RevitMepAutomation.Revit
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Automation Startup Error", ex.Message);
+                TaskDialog.Show("DAR Startup Error", ex.Message);
                 return Result.Failed;
             }
         }
