@@ -267,6 +267,9 @@
       <Folder Include="BusinessLogics\" />
       <Folder Include="Resources\" />
     </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="C:\Users\Mahesh-Bhagya\.gemini\antigravity\scratch\RevitMepAutoReroute\RevitMepAutomation.csproj" />
+    </ItemGroup>
     <Target Name="AfterClean">
         <Delete Files="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\MBRevitDev_Hub.addin" />
         <Delete Files="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\MBRevitDev_Hub.dll" />

@@ -11,5 +11,15 @@
     <BuildType Name="R2027" />
     <BuildType Name="Release" />
   </Configurations>
+  <Project Path="C:/Users/Mahesh-Bhagya/.gemini/antigravity/scratch/RevitMepAutoReroute/RevitMepAutomation.csproj">
+    <BuildType Solution="R2020|*" Project="Debug" />
+    <BuildType Solution="R2021|*" Project="Debug" />
+    <BuildType Solution="R2022|*" Project="Debug" />
+    <BuildType Solution="R2023|*" Project="Debug" />
+    <BuildType Solution="R2024|*" Project="Debug" />
+    <BuildType Solution="R2025|*" Project="Debug" />
+    <BuildType Solution="R2026|*" Project="Debug" />
+    <BuildType Solution="R2027|*" Project="Debug" />
+  </Project>
   <Project Path="MBRevitDev_Hub/MBRevitDev_Hub.csproj" />
 </Solution>
