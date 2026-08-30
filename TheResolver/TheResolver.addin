@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+	
+  <AddIn Type="Application">
+    <Name>Application TheResolver</Name>
+    <Assembly>TheResolver/TheResolver.dll</Assembly>
+    <FullClassName>TheResolver.AddInApplication</FullClassName>
+    <ClientId>603CF8A5-7B9B-4085-80A6-2A02FC66F087</ClientId>
+    <VendorId>Edit this in settings</VendorId>
+    <VendorDescription> (company + authors + website)</VendorDescription>
+  </AddIn>
+	
+</RevitAddIns>

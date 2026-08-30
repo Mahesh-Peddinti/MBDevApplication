@@ -8,7 +8,7 @@
       xmlns:vm="clr-namespace:RevitMepAutomation.ViewModels"
       mc:Ignorable="d" 
       d:DesignHeight="700" d:DesignWidth="900"
-      Title="DAR – Clash Resolution Tool"
+      Title="MB – Clash Resolution Tool"
       Background="{DynamicResource WindowBgBrush}">
 
     <Page.Resources>

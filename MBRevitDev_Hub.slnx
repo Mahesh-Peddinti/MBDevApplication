@@ -13,4 +13,5 @@
   </Configurations>
   <Project Path="MBRevitDev_Hub/MBRevitDev_Hub.csproj" />
   <Project Path="RevitMepAutomation/RevitMepAutomation.csproj" Id="e76c9a04-d866-4bb0-8cf0-dd53ad6daa73" />
+  <Project Path="TheResolver/TheResolver.csproj" Id="cd4c5b18-0f0d-4592-9717-89ab2cf16fed" />
 </Solution>

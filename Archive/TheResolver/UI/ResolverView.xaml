@@ -1,0 +1,300 @@
+﻿<UserControl x:Class="TheResolver.UI.ResolverView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#2C2C2C"
+             >
+
+    <Grid Margin="5">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="1.5*"/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Background="#1E1E1E"
+                BorderBrush="#4472C4"
+                BorderThickness="1">
+
+            <TextBlock Text="THE RESOLVER"
+                       Foreground="White"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"
+                       Margin="10,0"/>
+        </Border>
+
+        <!-- Main Area -->
+        <Grid Grid.Row="1">
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height=" 350"/>
+                <RowDefinition Height=" 50"/>
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>                    
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Clashes -->
+                <DataGrid ItemsSource="{Binding Clashes}"
+                          SelectedItem="{Binding SelectedClash}"
+                          AutoGenerateColumns="False"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="All"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch"
+                          ColumnWidth="*"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          IsReadOnly="False"
+                          Background="#202020"
+                          Foreground="Black"
+                          BorderThickness="0">
+                    
+                    <DataGrid.Columns>
+
+                        <!-- Check Box -->
+                        <DataGridTemplateColumn Width="35">
+                            <DataGridTemplateColumn.Header>
+                                <CheckBox
+                                    IsChecked="{Binding
+                                    DataContext.IsAllSelected,
+                                    RelativeSource={RelativeSource AncestorType=UserControl},
+                                    Mode=TwoWay,
+                                    UpdateSourceTrigger=PropertyChanged}" />        
+                            </DataGridTemplateColumn.Header>
+                            
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsSelected,
+                                          Mode=TwoWay}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        
+                        <DataGridTextColumn
+                            Header="Clash ID"
+                            FontWeight="Bold"
+                            Binding="{Binding ClashId}"
+                            Width="1*" />
+
+                        <DataGridTextColumn
+                           Header="Element 1 ID"
+                            FontWeight="Bold"
+                            Binding="{Binding Element1}"
+                            Width="2*" />
+
+                        <DataGridTextColumn
+                            Header="Element 2 ID"
+                            FontWeight="Bold"
+                            Binding="{Binding Element2}"
+                            Width="3*" />
+
+                        <DataGridTextColumn
+                           Header="LinkProject Name"
+                           FontWeight="Bold"
+                            Binding="{Binding Element2ProjectName}"
+                            Width="4*" />
+
+                        <DataGridTextColumn
+                            Header="Status"
+                            FontWeight="Bold"
+                            Binding="{Binding Status}"
+                            Width="2*" />
+
+                    </DataGrid.Columns>
+
+                </DataGrid>               
+
+            </Grid>           
+
+            <!-- Clash Button Area -->
+            <Grid Grid.Row="1">
+                <Button Content="Run Clash Detection"                             
+                             Margin="5"
+                             FontSize="14"
+                             Background="AntiqueWhite"
+                             Foreground="Black"
+                             FontWeight="Bold"
+                             Command="{Binding RunClashDetectionCommand}"                             
+                             />        
+            </Grid>
+            
+
+        </Grid>
+
+        <!-- PreView Space -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="300"/>
+                <RowDefinition Height="170"/>
+            </Grid.RowDefinitions>
+
+            <!-- Preview -->
+            <GroupBox Header="Clash Preview"
+          Foreground="White"
+          Margin="3">
+
+                <Grid Background="#202020">
+
+                    <Image Source="{Binding PreviewImage}"
+               Stretch="Uniform"
+               HorizontalAlignment="Stretch"
+               VerticalAlignment="Stretch"/>
+
+                    <TextBlock Text="No Preview Available"
+                   Foreground="Gray"
+                   FontSize="16"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center">
+
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility"
+                            Value="Collapsed"/>
+
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PreviewImage}"
+                                     Value="{x:Null}">
+                                        <Setter Property="Visibility"
+                                    Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+
+                    </TextBlock>
+
+                </Grid>
+
+            </GroupBox>
+
+            <!-- Settings -->
+            <Border Grid.Row="1"
+                    Margin="3"
+                    Background="#B7D4E5">   
+
+                <Grid Margin="10">
+
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Parameters -->
+                    <GroupBox Header="Custom Parameters"
+                  FontWeight="Bold"
+                  Margin="0,0,10,0">
+
+                        <Grid Margin="10">
+
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="80"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="Bend Radius"
+                           VerticalAlignment="Center"/>
+
+                            <TextBox Grid.Column="1"/>
+
+                            <TextBlock Grid.Row="1"
+                           Text="Bend Angle"
+                           VerticalAlignment="Center"/>
+
+                            <TextBox Grid.Row="1"
+                         Grid.Column="1"/>
+
+                            <TextBlock Grid.Row="2"
+                           Text="Offset Span"
+                           VerticalAlignment="Center"/>
+
+                            <TextBox Grid.Row="2"
+                         Grid.Column="1"/>
+
+                            <TextBlock Grid.Row="3"
+                           Text="Top Clearance"
+                           VerticalAlignment="Center"/>
+
+                            <TextBox Grid.Row="3"
+                         Grid.Column="1"/>
+
+                        </Grid>
+
+                    </GroupBox>
+
+                    <!-- Direction & Actions -->
+                    <StackPanel Grid.Column="1">
+
+                        <GroupBox Header="Routing Direction"
+                      FontWeight="Bold"
+                      Margin="0,0,0,10">
+
+                            <StackPanel Margin="10">
+
+                                <RadioButton Content="Up"
+                                 IsChecked="True"
+                                 Margin="5"/>
+
+                                <RadioButton Content="Down"
+                                 Margin="5"/>
+                            </StackPanel>
+
+                        </GroupBox>
+
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+
+                            <Button Content="Cancel"
+                                            Width="90"
+                                            Height="35"
+                                            Margin="5"
+                                            Background="#E67E22"
+                                            Foreground="White"
+                                            Command="{Binding CancelCommand}"/>
+
+                            <Button Content="Accept"
+                                            Width="90"
+                                            Height="35"
+                                            Margin="5"
+                                            Background="#4CAF50"
+                                            Foreground="White"
+                                            Command="{Binding AcceptCommand}"/>        
+
+                        </StackPanel>
+
+                    </StackPanel>
+
+                </Grid>
+
+            </Border>
+        </Grid>
+        <!-- Bottom -->
+        <Grid Grid.Row="3">
+
+            <Button Content="FINISH"
+                    Width="120"
+                    Height="35"
+                    HorizontalAlignment="Right"
+                    Margin="10"
+                    Background="#44AA22"
+                    Foreground="White"
+                    FontWeight="Bold"/>
+
+        </Grid>
+
+    </Grid>
+
+</UserControl>
