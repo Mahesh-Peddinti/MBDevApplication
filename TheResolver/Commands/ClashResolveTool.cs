@@ -138,6 +138,10 @@ namespace TheResolver.Services
                 case ModelRequest.FinishSession:
                     FinishSession(app);
                     break;
+
+                case ModelRequest.UpdateBypassPreview:
+                    UpdateBypassPreview(app);
+                    break;
             }
         }
 
@@ -370,6 +374,10 @@ namespace TheResolver.Services
             if (clash == null)
                 return;
 
+            // Compute the 2D schematic preview (cheap, pure geometry).
+            _clashViewModel.UpdatePreview(
+                BuildPreviewData(clash, _clashViewModel.BuildRouteSettings()));
+
             if (clash.Intersection == null || clash.Tray == null)
             {
                 _clashViewModel.StatusText =
@@ -379,6 +387,116 @@ namespace TheResolver.Services
             }
 
             CreatePreviewView(app, clash);
+        }
+
+        /// <summary>
+        /// Recomputes the 2D schematic only (no Revit 3D view churn) when the
+        /// user changes a route parameter or the detour direction.
+        /// </summary>
+        private void UpdateBypassPreview(UIApplication app)
+        {
+            ClashInfoDTOs clash =
+                _clashViewModel.SelectedClash?.ClashInfo;
+
+            if (clash?.Tray == null || clash.ClashElement == null)
+            {
+                _clashViewModel.UpdatePreview(
+                    new PreviewRouteData
+                    {
+                        IsValid = false,
+                        Message = "No clash selected."
+                    });
+
+                return;
+            }
+
+            _clashViewModel.UpdatePreview(
+                BuildPreviewData(clash, _clashViewModel.BuildRouteSettings()));
+        }
+
+        /// <summary>
+        /// Builds the side-view (station vs elevation) preview from the same
+        /// bypass solver used by Accept, so what the user sees is what gets
+        /// built. Uses <see cref="GeometricUtilities.TryBuildBypassRoutingPoints"/>.
+        /// </summary>
+        private static PreviewRouteData BuildPreviewData(
+            ClashInfoDTOs clash,
+            RouteSettingDTOs settings)
+        {
+            var data = new PreviewRouteData();
+
+            LocationCurve trayLocation =
+                clash.Tray.Location as LocationCurve;
+
+            Line trayLine = trayLocation?.Curve as Line;
+
+            if (trayLine == null)
+            {
+                data.Message = "Only straight cable trays can be previewed.";
+                return data;
+            }
+
+            XYZ start = trayLine.GetEndPoint(0);
+            XYZ end = trayLine.GetEndPoint(1);
+            XYZ dir = (end - start).Normalize();
+
+            data.TrayLengthMm = start.DistanceTo(end) * 304.8;
+
+            var utils = new GeometricUtilities();
+            bool routeOk = utils.TryBuildBypassRoutingPoints(
+                clash, settings, out List<XYZ> points);
+
+            BoundingBoxXYZ elemBox =
+                clash.ClashElement?.get_BoundingBox(null);
+
+            if (elemBox != null)
+            {
+                double minProj = double.MaxValue;
+                double maxProj = double.MinValue;
+
+                double[] xs = { elemBox.Min.X, elemBox.Max.X };
+                double[] ys = { elemBox.Min.Y, elemBox.Max.Y };
+                double[] zs = { elemBox.Min.Z, elemBox.Max.Z };
+
+                foreach (double x in xs)
+                foreach (double y in ys)
+                foreach (double z in zs)
+                {
+                    XYZ corner = new XYZ(x, y, z);
+                    double proj = (corner - start).DotProduct(dir);
+                    minProj = Math.Min(minProj, proj);
+                    maxProj = Math.Max(maxProj, proj);
+                }
+
+                data.ClashStationMinMm = minProj * 304.8;
+                data.ClashStationMaxMm = maxProj * 304.8;
+                data.ClashMinElevationMm = (elemBox.Min.Z - start.Z) * 304.8;
+                data.ClashMaxElevationMm = (elemBox.Max.Z - start.Z) * 304.8;
+            }
+
+            if (routeOk && points != null && points.Count >= 4)
+            {
+                data.IsValid = true;
+                data.Message = "Route preview";
+
+                foreach (XYZ pt in points)
+                {
+                    double station = (pt - start).DotProduct(dir) * 304.8;
+                    double elevation = (pt.Z - start.Z) * 304.8;
+                    data.RoutePoints.Add((station, elevation));
+                }
+
+                data.IsDetourUp = points[1].Z > points[0].Z;
+                data.RiseMm = Math.Abs(points[1].Z - points[0].Z) * 304.8;
+                data.ClearanceMm = settings.MinimumClearance * 304.8;
+            }
+            else
+            {
+                data.Message =
+                    "Route not feasible with current parameters.";
+            }
+
+            return data;
         }
 
         private void CreatePreviewView(

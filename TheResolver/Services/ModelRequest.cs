@@ -10,6 +10,7 @@ namespace TheResolver.Services
         ResolveSelected,
         ResolveAll,
         FinishSession,
-        ExportReport
+        ExportReport,
+        UpdateBypassPreview
     }
 }

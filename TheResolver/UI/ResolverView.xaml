@@ -53,6 +53,8 @@
             <RowDefinition Height="*" />
             <!-- Detection button -->
             <RowDefinition Height="Auto" />
+            <!-- Route preview -->
+            <RowDefinition Height="Auto" />
             <!-- Route settings -->
             <RowDefinition Height="Auto" />
             <!-- Status + Finish -->
@@ -245,8 +247,36 @@
                 Foreground="Black"
                 Command="{Binding RunClashDetectionCommand}" />
 
-        <!-- Route settings -->
+        <!-- Route Preview -->
         <Border Grid.Row="4"
+                Margin="0,6,0,0"
+                Style="{StaticResource SectionBorder}">
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="190" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Route Preview"
+                           FontWeight="Bold"
+                           Style="{StaticResource FieldLabel}" />
+
+                <Border Grid.Row="1"
+                        Background="#161616"
+                        BorderBrush="#3A3A3A"
+                        BorderThickness="1"
+                        Margin="0,3,0,0">
+
+                    <Canvas x:Name="PreviewCanvas"
+                            ClipToBounds="True"
+                            SizeChanged="PreviewCanvas_SizeChanged" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Route settings -->
+        <Border Grid.Row="5"
                 Margin="0,6,0,0"
                 Style="{StaticResource SectionBorder}">
 
@@ -375,7 +405,7 @@
         </Border>
 
         <!-- Status + Finish -->
-        <Grid Grid.Row="5" Margin="0,6,0,0">
+        <Grid Grid.Row="6" Margin="0,6,0,0">
 
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />

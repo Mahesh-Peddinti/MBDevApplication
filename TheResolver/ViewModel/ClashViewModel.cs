@@ -47,6 +47,7 @@ namespace TheResolver.ViewModel
         private double _offsetSpanMm = 150.0;
         private double _topClearanceMm = 100.0;
         private RouteDirection _preferredDirection = RouteDirection.Auto;
+        private PreviewRouteData _previewRouteData;
 
         public ClashViewModel()
             : this(new ModelSelectionService())
@@ -183,25 +184,41 @@ namespace TheResolver.ViewModel
         public double BendRadiusMm
         {
             get => _bendRadiusMm;
-            set => SetField(ref _bendRadiusMm, value);
+            set
+            {
+                if (SetField(ref _bendRadiusMm, value))
+                    OnRouteParameterChanged();
+            }
         }
 
         public double BendAngleDegrees
         {
             get => _bendAngleDegrees;
-            set => SetField(ref _bendAngleDegrees, value);
+            set
+            {
+                if (SetField(ref _bendAngleDegrees, value))
+                    OnRouteParameterChanged();
+            }
         }
 
         public double OffsetSpanMm
         {
             get => _offsetSpanMm;
-            set => SetField(ref _offsetSpanMm, value);
+            set
+            {
+                if (SetField(ref _offsetSpanMm, value))
+                    OnRouteParameterChanged();
+            }
         }
 
         public double TopClearanceMm
         {
             get => _topClearanceMm;
-            set => SetField(ref _topClearanceMm, value);
+            set
+            {
+                if (SetField(ref _topClearanceMm, value))
+                    OnRouteParameterChanged();
+            }
         }
 
         public RouteDirection PreferredDirection
@@ -215,6 +232,7 @@ namespace TheResolver.ViewModel
                 OnPropertyChanged(nameof(IsDirectionAuto));
                 OnPropertyChanged(nameof(IsDirectionUp));
                 OnPropertyChanged(nameof(IsDirectionDown));
+                OnRouteParameterChanged();
             }
         }
 
@@ -333,8 +351,23 @@ namespace TheResolver.ViewModel
 
                 OnPropertyChanged();
 
-                _cancelCommand.RaiseCanExecuteChanged();
+                        _cancelCommand.RaiseCanExecuteChanged();
             }
+        }
+
+        public PreviewRouteData PreviewRouteData
+        {
+            get => _previewRouteData;
+            set
+            {
+                _previewRouteData = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public void UpdatePreview(PreviewRouteData data)
+        {
+            PreviewRouteData = data;
         }
 
         public string StatusText
@@ -391,6 +424,8 @@ namespace TheResolver.ViewModel
 
             PreviewImage = null;
 
+            PreviewRouteData = null;
+
             StatusText = "Preview discarded.";
 
             Raise(ModelRequest.DiscardPreview);
@@ -415,6 +450,23 @@ namespace TheResolver.ViewModel
                 return;
 
             Raise(ModelRequest.PreviewRoute);
+        }
+
+        /// <summary>
+        /// Recomputes only the 2D schematic (cheap, no Revit 3D view churn)
+        /// when the user tweaks a route parameter or the detour direction.
+        /// </summary>
+        private void RaiseBypassPreview()
+        {
+            if (_selectedClash == null)
+                return;
+
+            Raise(ModelRequest.UpdateBypassPreview);
+        }
+
+        private void OnRouteParameterChanged()
+        {
+            RaiseBypassPreview();
         }
 
         private void Raise(ModelRequest request)

@@ -278,6 +278,7 @@
 		<Compile Include="DTOs\ClashGroupInfoDTOs.cs" />
 		<Compile Include="DTOs\ClashInfoDTOs.cs" />
 		<Compile Include="DTOs\ClashSide.cs" />
+		<Compile Include="DTOs\PreviewRouteData.cs" />
 		<Compile Include="DTOs\RouteSettingDTOs.cs" />
 		<Compile Include="Commands\CableTrayClashResolver.cs" />
 		<Compile Include="Commands\ClashResolveTool.cs" />
