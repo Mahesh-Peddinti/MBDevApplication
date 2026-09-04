@@ -31,6 +31,8 @@ namespace TheResolver.Commands
             _pendingRequests.Enqueue(request);
         }
 
+
+
         public void Execute(UIApplication app)
         {
             while (_pendingRequests.Count > 0)
@@ -50,6 +52,10 @@ namespace TheResolver.Commands
                     case ModelRequest.PreviewRoute:
                     case ModelRequest.UpdateBypassPreview:
                         UpdatePreview(app);
+                        if (_viewModel.SelectedClash?.ClashInfo != null)
+                        {
+                            FocusOnClash(app, _viewModel.SelectedClash.ClashInfo);
+                        }
                         break;
                     case ModelRequest.ResolveSelected:
                         ResolveSelected(app);
@@ -61,6 +67,8 @@ namespace TheResolver.Commands
                         break;
                     case ModelRequest.FinishSession:
                         break;
+
+
                 }
             }
         }
@@ -342,6 +350,62 @@ namespace TheResolver.Commands
             }
 
             return data;
+        }
+        private void FocusOnClash(UIApplication app, ClashInfoDTOs clash)
+        {
+            if (clash?.Tray == null) return;
+
+            UIDocument uidoc = app.ActiveUIDocument;
+            Document doc = uidoc.Document;
+            Autodesk.Revit.DB.View activeView = doc.ActiveView;
+
+            // 1. Highlight the clashing tray in Revit's selection set
+            var selectionIds = new List<ElementId> { clash.Tray.Id };
+            if (!clash.ClashElement.Document.IsLinked)
+            {
+                selectionIds.Add(clash.ClashElement.Id);
+            }
+            uidoc.Selection.SetElementIds(selectionIds);
+
+            // 2. Derive the 3D target bounding box for the clash region
+            BoundingBoxXYZ trayBox = clash.Tray.get_BoundingBox(null);
+            if (trayBox == null) return;
+
+            XYZ center;
+            try
+            {
+                center = clash.Intersection?.ComputeCentroid();
+            }
+            catch { center = null; }
+
+            if (center == null)
+            {
+                center = (trayBox.Min + trayBox.Max) * 0.5;
+            }
+
+            // Expand bounding box by 1.5 meters around the clash for context
+            double offset = 1500.0 / 304.8;
+            XYZ min = new XYZ(center.X - offset, center.Y - offset, center.Z - offset);
+            XYZ max = new XYZ(center.X + offset, center.Y + offset, center.Z + offset);
+
+            // 3. Zoom and center the active UIView to the clash bounding area
+            UIView activeUIView = uidoc.GetOpenUIViews().FirstOrDefault(v => v.ViewId == activeView.Id);
+            if (activeUIView != null)
+            {
+                activeUIView.ZoomAndCenterRectangle(min, max);
+            }
+
+            // 4. If in a 3D View, update the Section Box inside a Transaction
+            if (activeView is View3D view3d && view3d.IsSectionBoxActive)
+            {
+                using (Transaction t = new Transaction(doc, "Focus Clash Section Box"))
+                {
+                    t.Start();
+                    BoundingBoxXYZ sectionBox = new BoundingBoxXYZ { Min = min, Max = max };
+                    view3d.SetSectionBox(sectionBox);
+                    t.Commit();
+                }
+            }
         }
         public static bool IsRouteFeasible(ClashInfoDTOs clash, RouteSettingDTOs settings)
         {

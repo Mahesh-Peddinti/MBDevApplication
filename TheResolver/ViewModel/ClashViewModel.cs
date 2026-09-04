@@ -452,15 +452,15 @@ namespace TheResolver.ViewModel
                     return;
 
                 _selectedClash = value;
-
                 OnPropertyChanged();
-
                 UpdateStatusForSelection();
-
                 _cancelCommand.RaiseCanExecuteChanged();
 
-                // Automatically preview the selected clash.
-                RaisePreview();
+                // Enqueue preview computation and viewport camera focus
+                if (_selectedClash != null && !_suspendPreview)
+                {
+                    Raise(ModelRequest.PreviewRoute);
+                }
             }
         }
 
