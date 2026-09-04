@@ -119,6 +119,26 @@ namespace TheResolver
                 // FIND REAL CLASHES
                 // ----------------------------------------------------
 
+                var spatialIndex = new LocalSpatialIndex(1000.0);
+
+                // Collect linked items with their instance transforms
+                var linkedObstacles = new List<(RevitLinkInstance Instance, Element Element)>();
+                var linkInstances = new FilteredElementCollector(doc).OfClass(typeof(RevitLinkInstance)).Cast<RevitLinkInstance>();
+                foreach (var link in linkInstances)
+                {
+                    Document linkDoc = link.GetLinkDocument();
+                    if (linkDoc == null) continue;
+                    var linkElems = new FilteredElementCollector(linkDoc)
+                        .WhereElementIsNotElementType()
+                        .WherePasses(new ElementMulticategoryFilter(multiCategories))
+                        .ToElements();
+                    foreach (var le in linkElems)
+                        linkedObstacles.Add((link, le));
+                }
+
+                spatialIndex.IngestElements(doc, modelElements, linkedObstacles);
+                geometricUtilities.SpatialIndex = spatialIndex;
+
 
                 List<ClashInfoDTOs> clashes = geometricUtilities.FindClashes(trays, modelElements, settings);     
 

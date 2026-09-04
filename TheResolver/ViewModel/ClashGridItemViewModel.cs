@@ -12,6 +12,7 @@ namespace TheResolver.ViewModel
         private bool _isSelected;
         private bool _isResolved;
         private bool _resolveFailed;
+        private bool _isFeasible = true;
 
         /// <summary>
         /// Raised whenever <see cref="IsSelected"/> changes so the owning
@@ -86,6 +87,20 @@ namespace TheResolver.ViewModel
                     _isResolved = false;
 
                 RaiseStatusChanged();
+            }
+        }
+
+        public bool IsFeasible
+        {
+            get => _isFeasible;
+            set
+            {
+                if (_isFeasible == value)
+                    return;
+
+                _isFeasible = value;
+
+                OnPropertyChanged(nameof(IsFeasible));
             }
         }
 

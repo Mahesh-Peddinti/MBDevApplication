@@ -8,10 +8,29 @@ namespace TheResolver.Services
     public interface IModelSelectionService
     {
         IList<ClashModelItem> GetAvailableModels(Document doc);
+
+        IList<CategoryItem> GetAvailableCategories(Document doc);
     }
 
     public class ModelSelectionService : IModelSelectionService
     {
+        private static readonly BuiltInCategory[] TrackedCategories =
+        {
+            BuiltInCategory.OST_DuctCurves,
+            BuiltInCategory.OST_CableTray,
+            BuiltInCategory.OST_Conduit,
+            BuiltInCategory.OST_PipeCurves,
+            BuiltInCategory.OST_DetailComponents,
+            BuiltInCategory.OST_Furniture,
+            BuiltInCategory.OST_StructuralColumns,
+            BuiltInCategory.OST_StructuralFraming,
+            BuiltInCategory.OST_Walls,
+            BuiltInCategory.OST_CableTrayFitting,
+            BuiltInCategory.OST_DuctFitting,
+            BuiltInCategory.OST_PipeFitting,
+            BuiltInCategory.OST_ConduitFitting
+        };
+
         public IList<ClashModelItem> GetAvailableModels(
             Document hostDoc)
         {
@@ -52,6 +71,41 @@ namespace TheResolver.Services
                         LinkInstanceId = link.Id,
                         IsSelected = true
                     });
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Returns the MEP categories that exist in the given document,
+        /// each as a checkable <see cref="CategoryItem"/>.
+        /// </summary>
+        public IList<CategoryItem> GetAvailableCategories(Document doc)
+        {
+            var result = new List<CategoryItem>();
+
+            if (doc == null)
+                return result;
+
+            foreach (var cat in TrackedCategories)
+            {
+                var collector =
+                    new FilteredElementCollector(doc)
+                        .OfCategory(cat)
+                        .WhereElementIsNotElementType();
+
+                Element first = collector.FirstOrDefault();
+
+                if (first != null)
+                {
+                    result.Add(
+                        new CategoryItem
+                        {
+                            Name = first.Category?.Name ?? cat.ToString(),
+                            Category = cat,
+                            IsSelected = true
+                        });
+                }
             }
 
             return result;

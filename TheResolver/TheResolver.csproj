@@ -258,10 +258,14 @@
 		<Compile Include="Button\RibbonButtonInfo.cs" />
 		<Compile Include="Button\ShowResolverPane.cs" />
 		<Compile Include="DTOs\ClashModelItem.cs" />
+
+		<Compile Include="DTOs\CategoryItem.cs" />
+
 		<Compile Include="ModelService.cs" />
 		<Compile Include="Services\IModelSelectionService.cs" />
 		<Compile Include="UI\ResolverDockablePane.cs" />
 		<Compile Include="UI\ResolverView.xaml.cs" />
+		<Compile Include="Utilities\LocalSpatialIndex.cs" />
 		<Compile Include="ViewModel\ClashGridItemViewModel.cs" />
 		<Compile Include="ViewModel\ClashItemViewModel.cs" />
 		<Compile Include="ViewModel\ClashViewModel.cs" />

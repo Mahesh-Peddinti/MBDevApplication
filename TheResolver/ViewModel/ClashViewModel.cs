@@ -11,6 +11,7 @@ using Autodesk.Revit.UI;
 using TheResolver.DTOs;
 using TheResolver.Services;
 using TheResolver.Utilities;
+using TheResolver.Commands;
 
 namespace TheResolver.ViewModel
 {
@@ -29,10 +30,14 @@ namespace TheResolver.ViewModel
         private readonly ClashResolveTool _clashResolveTool;
         private readonly ExternalEvent _modelEvent;
 
+        /// <summary>Exposed so ClashResolveTool can enumerate categories.</summary>
+        public IModelSelectionService ModelSelectionService => _modelSelectionService;
+
         private readonly RelayCommand _runClashDetectionCommand;
         private readonly RelayCommand _acceptCommand;
         private readonly RelayCommand _cancelCommand;
         private readonly RelayCommand _finishCommand;
+        private readonly RelayCommand _loadModelsCommand;
 
         private bool _suspendPreview;
         private bool _isUpdatingSelection;
@@ -74,13 +79,34 @@ namespace TheResolver.ViewModel
 
             _finishCommand =
                 new RelayCommand(Finish);
+
+            _loadModelsCommand =
+                new RelayCommand(RequestModelRefresh);
+
+            Clashes.CollectionChanged += (s, e) =>
+            {
+                OnPropertyChanged(nameof(TotalClashes));
+                OnPropertyChanged(nameof(HasClashes));
+            };
         }
 
-        public ObservableCollection<ClashModelItem> AvailableModels { get; }
+        public ObservableCollection<ClashModelItem> HostModels { get; }
+            = new ObservableCollection<ClashModelItem>();
+
+        public ObservableCollection<ClashModelItem> LinkModels { get; }
             = new ObservableCollection<ClashModelItem>();
 
         public ObservableCollection<ClashGridItemViewModel> Clashes { get; }
             = new ObservableCollection<ClashGridItemViewModel>();
+
+        // Separate category collections for the Combos
+        public ObservableCollection<CategoryItem> HostCategories { get; }
+            = new ObservableCollection<CategoryItem>();
+
+        public ObservableCollection<CategoryItem> LinkCategories { get; }
+            = new ObservableCollection<CategoryItem>(); 
+
+
 
         public ICommand RunClashDetectionCommand => _runClashDetectionCommand;
 
@@ -89,6 +115,8 @@ namespace TheResolver.ViewModel
         public ICommand CancelCommand => _cancelCommand;
 
         public ICommand FinishCommand => _finishCommand;
+
+        public ICommand LoadModelsCommand => _loadModelsCommand;
 
         // ------------------------------------------------------------
         // MODEL SELECTION
@@ -108,14 +136,15 @@ namespace TheResolver.ViewModel
 
             var previouslyUnselected =
                 new HashSet<string>(
-                    AvailableModels
+                    GetAvailableModels()
                         .Where(m => !m.IsSelected)
                         .Select(m => m.Name ?? string.Empty));
 
-            foreach (var stale in AvailableModels)
+            foreach (var stale in GetAvailableModels())
                 stale.SelectionChangedAction = null;
 
-            AvailableModels.Clear();
+            HostModels.Clear();
+            LinkModels.Clear();
 
             foreach (var model in _modelSelectionService.GetAvailableModels(doc))
             {
@@ -124,32 +153,104 @@ namespace TheResolver.ViewModel
 
                 model.SelectionChangedAction = OnModelSelectionChanged;
 
-                AvailableModels.Add(model);
+                if (model.IsHost)
+                    HostModels.Add(model);
+                else
+                    LinkModels.Add(model);
             }
 
             OnPropertyChanged(nameof(ModelSelectionSummary));
         }
 
+        private IEnumerable<ClashModelItem> GetAvailableModels()
+        {
+            foreach (var m in HostModels)
+                yield return m;
+
+            foreach (var m in LinkModels)
+                yield return m;
+        }
+     
+
+        public void PopulateCategoryCombos(HashSet<BuiltInCategory> hostCats, HashSet<BuiltInCategory> linkCats)
+        {
+            HostCategories.Clear();
+            foreach (var cat in hostCats)
+            {
+                HostCategories.Add(new CategoryItem
+                {
+                    Name = LabelUtils.GetLabelFor(cat),
+                    Category = cat,
+                    IsSelected = true
+                });
+            }
+
+            LinkCategories.Clear();
+            foreach (var cat in linkCats)
+            {
+                LinkCategories.Add(new CategoryItem
+                {
+                    Name = LabelUtils.GetLabelFor(cat),
+                    Category = cat,
+                    IsSelected = true
+                });
+            }
+        }
+
         /// <summary>
-        /// Text shown on the closed combo box, since a multi-select list has
+        /// Text shown on the closed combo boxes, since a multi-select list has
         /// no single SelectedItem to display.
         /// </summary>
         public string ModelSelectionSummary
         {
             get
             {
-                if (AvailableModels.Count == 0)
+                var allModels = GetAvailableModels().ToList();
+
+                if (allModels.Count == 0)
                     return "No models loaded";
 
-                int selected = AvailableModels.Count(m => m.IsSelected);
+                int selected = allModels.Count(m => m.IsSelected);
 
-                return $"{selected} of {AvailableModels.Count} model(s) selected";
+                return $"{selected} of {allModels.Count} model(s) selected";
+            }
+        }
+
+
+        // Synchronize categories when models change or load
+        public void SyncCategories()
+        {
+            HostCategories.Clear();
+            foreach (var m in HostModels.Where(x => x.IsSelected))
+            {
+                foreach (var c in m.Categories)
+                {
+                    if (!HostCategories.Any(x => x.Category == c.Category))
+                    {
+                        c.IsSelected = true;
+                        HostCategories.Add(c);
+                    }
+                }
+            }
+
+            LinkCategories.Clear();
+            foreach (var m in LinkModels.Where(x => x.IsSelected))
+            {
+                foreach (var c in m.Categories)
+                {
+                    if (!LinkCategories.Any(x => x.Category == c.Category))
+                    {
+                        c.IsSelected = true;
+                        LinkCategories.Add(c);
+                    }
+                }
             }
         }
 
         private void OnModelSelectionChanged()
         {
             OnPropertyChanged(nameof(ModelSelectionSummary));
+            SyncCategories();
         }
 
         /// <summary>
@@ -159,13 +260,12 @@ namespace TheResolver.ViewModel
         /// </summary>
         public HashSet<ElementId> GetSelectedLinkInstanceIds()
         {
-            if (AvailableModels.Count == 0)
+            if (LinkModels.Count == 0)
                 return null;
 
             return new HashSet<ElementId>(
-                AvailableModels
+                LinkModels
                     .Where(m => m.IsSelected
-                                && !m.IsHost
                                 && m.LinkInstanceId != null)
                     .Select(m => m.LinkInstanceId));
         }
@@ -174,8 +274,35 @@ namespace TheResolver.ViewModel
         /// True when the host document itself should be included.
         /// </summary>
         public bool IsHostModelSelected =>
-            AvailableModels.Count == 0
-            || AvailableModels.Any(m => m.IsHost && m.IsSelected);
+            HostModels.Count == 0
+            || HostModels.Any(m => m.IsSelected);
+
+        /// <summary>
+        /// Categories selected across all checked models.
+        /// </summary>
+        public HashSet<BuiltInCategory> GetSelectedCategories()
+        {
+            var selected = new HashSet<BuiltInCategory>();
+            if (IsHostModelSelected)
+            {
+                foreach (var cat in HostCategories.Where(c => c.IsSelected))
+                    selected.Add(cat.Category);
+            }
+            foreach (var cat in LinkCategories.Where(c => c.IsSelected))
+            {
+                selected.Add(cat.Category);
+            }
+            return selected;
+        }
+
+        /// <summary>
+        /// Loads categories for each selected model. Called after the user
+        /// clicks "Load" so the category trees populate before detection.
+        /// </summary>
+        public void LoadCategoriesForSelectedModels()
+        {
+            Raise(ModelRequest.LoadCategories);
+        }
 
         // ------------------------------------------------------------
         // ROUTE SETTINGS (entered in millimetres / degrees)
@@ -290,6 +417,7 @@ namespace TheResolver.ViewModel
         // GRID STATE
         // ------------------------------------------------------------
 
+        // Fixed Select All logic
         public bool IsAllSelected
         {
             get => _isAllSelected;
@@ -297,23 +425,20 @@ namespace TheResolver.ViewModel
             {
                 if (_isAllSelected == value)
                     return;
-
                 _isAllSelected = value;
-
                 _isUpdatingSelection = true;
-
                 try
                 {
                     foreach (var clash in Clashes)
+                    {
                         clash.IsSelected = value;
+                    }
                 }
                 finally
                 {
                     _isUpdatingSelection = false;
                 }
-
                 OnPropertyChanged();
-
                 _acceptCommand.RaiseCanExecuteChanged();
             }
         }
@@ -378,6 +503,12 @@ namespace TheResolver.ViewModel
 
         public bool HasClashes => Clashes.Count > 0;
 
+        public int TotalClashes => Clashes.Count;
+
+        public int ResolvedClashes => Clashes.Count(c => c.IsResolved);
+
+        public int FeasibleClashes => Clashes.Count(c => c.IsFeasible);
+
         // ------------------------------------------------------------
         // COMMANDS
         // ------------------------------------------------------------
@@ -437,11 +568,14 @@ namespace TheResolver.ViewModel
         }
 
         /// <summary>
-        /// Asks the model to refresh the host/link list.
+        /// Refetches the host + link model list and then populates the
+        /// category trees for every checked model.
         /// </summary>
         public void RequestModelRefresh()
         {
             Raise(ModelRequest.LoadModels);
+
+            Raise(ModelRequest.LoadCategories);
         }
 
         private void RaisePreview()
@@ -466,6 +600,8 @@ namespace TheResolver.ViewModel
 
         private void OnRouteParameterChanged()
         {
+            Raise(ModelRequest.RefreshFeasibility);
+
             RaiseBypassPreview();
         }
 
@@ -538,6 +674,11 @@ namespace TheResolver.ViewModel
             _acceptCommand.RaiseCanExecuteChanged();
             _cancelCommand.RaiseCanExecuteChanged();
 
+            RefreshFeasibility();
+
+            OnPropertyChanged(nameof(TotalClashes));
+            OnPropertyChanged(nameof(ResolvedClashes));
+
             // The first row was selected while previews were suspended,
             // so trigger its preview now.
             RaisePreview();
@@ -549,20 +690,15 @@ namespace TheResolver.ViewModel
         public void UpdateSelectAllState()
         {
             _acceptCommand.RaiseCanExecuteChanged();
-
             if (_isUpdatingSelection)
                 return;
 
-            bool allSelected =
-                Clashes.Count > 0 &&
-                Clashes.All(c => c.IsSelected);
-
-            if (_isAllSelected == allSelected)
-                return;
-
-            _isAllSelected = allSelected;
-
-            OnPropertyChanged(nameof(IsAllSelected));
+            bool allSelected = Clashes.Count > 0 && Clashes.All(c => c.IsSelected);
+            if (_isAllSelected != allSelected)
+            {
+                _isAllSelected = allSelected;
+                OnPropertyChanged(nameof(IsAllSelected));
+            }
         }
 
         /// <summary>
@@ -597,13 +733,52 @@ namespace TheResolver.ViewModel
                 $"{_selectedClash.ClashId}: {_selectedClash.Status}";
         }
 
+        public void RefreshCategoriesForSelection()
+        {
+            HostCategories.Clear();
+            foreach (var host in HostModels.Where(m => m.IsSelected))
+            {
+                foreach (var cat in host.Categories)
+                {
+                    if (!HostCategories.Any(c => c.Category == cat.Category))
+                        HostCategories.Add(cat);
+                }
+            }
+
+            LinkCategories.Clear();
+            foreach (var link in LinkModels.Where(m => m.IsSelected))
+            {
+                foreach (var cat in link.Categories)
+                {
+                    if (!LinkCategories.Any(c => c.Category == cat.Category))
+                        LinkCategories.Add(cat);
+                }
+            }
+        }
+
+
+        public void RefreshFeasibility()
+        {
+            var settings = BuildRouteSettings();
+
+            foreach (var clash in Clashes)
+            {
+                clash.IsFeasible =
+                    ClashResolveTool.IsRouteFeasible(
+                        clash.ClashInfo,
+                        settings);
+            }
+
+            OnPropertyChanged(nameof(FeasibleClashes));
+        }
+
         // ------------------------------------------------------------
         // INotifyPropertyChanged
         // ------------------------------------------------------------
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        protected void OnPropertyChanged(
+        protected internal void OnPropertyChanged(
             [CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(

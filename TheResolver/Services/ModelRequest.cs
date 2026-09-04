@@ -4,6 +4,7 @@ namespace TheResolver.Services
     {
         None,
         LoadModels,
+        LoadCategories,
         RunClashDetection,
         PreviewRoute,
         DiscardPreview,
@@ -11,6 +12,7 @@ namespace TheResolver.Services
         ResolveAll,
         FinishSession,
         ExportReport,
-        UpdateBypassPreview
+        UpdateBypassPreview,
+        RefreshFeasibility
     }
 }

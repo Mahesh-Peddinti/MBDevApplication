@@ -4,768 +4,352 @@ using System.Linq;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Electrical;
 using Autodesk.Revit.UI;
-using TheResolver.BusinessLogics;
 using TheResolver.DTOs;
+using TheResolver.Services;
 using TheResolver.Utilities;
 using TheResolver.ViewModel;
 
-namespace TheResolver.Services
+namespace TheResolver.Commands
 {
-    // TheResolver.View is a sibling namespace, so an unqualified "View" binds
-    // to the namespace rather than to the Revit type. The alias must sit inside
-    // the namespace declaration to win that lookup.
-    using View = Autodesk.Revit.DB.View;
-
-    /// <summary>
-    /// Single ExternalEvent handler for everything the Resolver pane needs to
-    /// do inside a valid Revit API context. Requests are queued rather than
-    /// stored in one field, because ExternalEvent.Raise() coalesces and a
-    /// second request used to overwrite the first before Revit ran it.
-    /// </summary>
     public class ClashResolveTool : IExternalEventHandler
     {
-        private const string PreviewViewPrefix = "Resolver Preview";
+        private readonly ClashViewModel _viewModel;
+        private readonly Queue<ModelRequest> _pendingRequests = new Queue<ModelRequest>();
+        private LocalSpatialIndex _spatialIndex;
 
-        private readonly ClashViewModel _clashViewModel;
-
-        private readonly Queue<ModelRequest> _pendingRequests =
-            new Queue<ModelRequest>();
-
-        /// <summary>
-        /// View the user was looking at before the first preview, so Cancel
-        /// and Finish can put them back.
-        /// </summary>
-        private ElementId _viewBeforePreview;
+        public List<ClashGridItemViewModel> SelectedClashes { get; set; } = new List<ClashGridItemViewModel>();
 
         public ClashResolveTool(ClashViewModel viewModel)
         {
-            _clashViewModel =
-                viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+            _viewModel = viewModel;
         }
 
-        /// <summary>
-        /// Rows the user ticked, supplied by the view model before it raises
-        /// <see cref="ModelRequest.ResolveSelected"/>.
-        /// </summary>
-        public List<ClashGridItemViewModel> SelectedClashes { get; set; }
+        public string GetName() => "ClashResolveTool";
 
-        public string GetName()
-        {
-            return "The Resolver Model Service";
-        }
-
-        /// <summary>
-        /// Adds a request to the queue. Consecutive duplicates are collapsed so
-        /// dragging down the grid does not queue one preview rebuild per row.
-        /// </summary>
         public void EnqueueRequest(ModelRequest request)
         {
-            if (request == ModelRequest.None)
-                return;
-
-            lock (_pendingRequests)
-            {
-                if (_pendingRequests.Count > 0 &&
-                    _pendingRequests.Last() == request)
-                {
-                    return;
-                }
-
-                _pendingRequests.Enqueue(request);
-            }
+            _pendingRequests.Enqueue(request);
         }
 
         public void Execute(UIApplication app)
         {
-            while (true)
+            while (_pendingRequests.Count > 0)
             {
-                ModelRequest request;
-
-                lock (_pendingRequests)
+                var request = _pendingRequests.Dequeue();
+                switch (request)
                 {
-                    if (_pendingRequests.Count == 0)
-                        return;
-
-                    request = _pendingRequests.Dequeue();
-                }
-
-                try
-                {
-                    Dispatch(app, request);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log($"{request} failed: {ex}");
-
-                    _clashViewModel.StatusText =
-                        $"{request} failed: {ex.Message}";
-
-                    TaskDialog.Show(
-                        "The Resolver",
-                        $"{request} could not be completed.\n\n{ex.Message}");
+                    case ModelRequest.LoadModels:
+                        _viewModel.Initialize(app.ActiveUIDocument?.Document);
+                        break;
+                    case ModelRequest.LoadCategories:
+                        LoadCategories(app.ActiveUIDocument?.Document);
+                        break;
+                    case ModelRequest.RunClashDetection:
+                        RunClashDetection(app);
+                        break;
+                    case ModelRequest.PreviewRoute:
+                    case ModelRequest.UpdateBypassPreview:
+                        UpdatePreview(app);
+                        break;
+                    case ModelRequest.ResolveSelected:
+                        ResolveSelected(app);
+                        break;
+                    case ModelRequest.RefreshFeasibility:
+                        _viewModel.RefreshFeasibility();
+                        break;
+                    case ModelRequest.DiscardPreview:
+                        break;
+                    case ModelRequest.FinishSession:
+                        break;
                 }
             }
         }
 
-        private void Dispatch(UIApplication app, ModelRequest request)
+        private void LoadCategories(Document doc)
         {
-            switch (request)
+            if (doc == null) return;
+
+            var hostCats = new HashSet<BuiltInCategory>();
+            var linkCats = new HashSet<BuiltInCategory>();
+
+            // 1. Harvest categories from host
+            foreach (var model in _viewModel.HostModels)
             {
-                case ModelRequest.LoadModels:
-                    LoadModels(app);
-                    break;
-
-                case ModelRequest.RunClashDetection:
-                    RunClashDetection(app);
-                    break;
-
-                case ModelRequest.PreviewRoute:
-                    PreviewRoute(app);
-                    break;
-
-                case ModelRequest.DiscardPreview:
-                    DiscardPreview(app);
-                    break;
-
-                case ModelRequest.ResolveSelected:
-                    ResolveSelected(app);
-                    break;
-
-                case ModelRequest.ResolveAll:
-                    ResolveAll(app);
-                    break;
-
-                case ModelRequest.FinishSession:
-                    FinishSession(app);
-                    break;
-
-                case ModelRequest.UpdateBypassPreview:
-                    UpdateBypassPreview(app);
-                    break;
+                if (model.Document != null)
+                {
+                    model.Categories.Clear();
+                    var cats = _viewModel.ModelSelectionService.GetAvailableCategories(model.Document);
+                    foreach (var c in cats)
+                    {
+                        model.Categories.Add(c);
+                        hostCats.Add(c.Category);
+                    }
+                }
             }
-        }
 
-        private static readonly BuiltInCategory[] ObstructionCategories =
-        {
-            BuiltInCategory.OST_DuctCurves,
-            BuiltInCategory.OST_CableTray,
-            BuiltInCategory.OST_Conduit,
-            BuiltInCategory.OST_PipeCurves
-        };
+            // 2. Harvest categories from linked files
+            foreach (var model in _viewModel.LinkModels)
+            {
+                if (model.Document != null)
+                {
+                    model.Categories.Clear();
+                    var cats = _viewModel.ModelSelectionService.GetAvailableCategories(model.Document);
+                    foreach (var c in cats)
+                    {
+                        model.Categories.Add(c);
+                        linkCats.Add(c.Category);
+                    }
+                }
+            }
 
-        private void LoadModels(UIApplication app)
-        {
-            Document doc = app.ActiveUIDocument?.Document;
-
-            if (doc == null)
-                return;
-
-            _clashViewModel.Initialize(doc);
+            // 3. Populate ViewModel collections for UI ComboBox binding
+            _viewModel.PopulateCategoryCombos(hostCats, linkCats);
         }
 
         private void RunClashDetection(UIApplication app)
         {
             UIDocument uidoc = app.ActiveUIDocument;
+            Document doc = uidoc.Document;
 
-            Document doc = uidoc?.Document;
+            var selectedCategories = _viewModel.GetSelectedCategories();
+            var selectedLinkIds = _viewModel.GetSelectedLinkInstanceIds();
 
-            if (doc == null)
+            List<Element> hostObstructions = new List<Element>();
+            List<(RevitLinkInstance Instance, Element Element)> linkedObstructions =
+                new List<(RevitLinkInstance Instance, Element Element)>();
+
+            // Harvest Host Elements
+            if (_viewModel.IsHostModelSelected)
             {
-                _clashViewModel.StatusText = "No active document.";
-                return;
-            }
-
-            // Keep the model list current, then honour the ticks in it.
-            _clashViewModel.Initialize(doc);
-
-            RouteSettingDTOs settings =
-                _clashViewModel.BuildRouteSettings();
-
-            List<CableTray> trays =
-                new FilteredElementCollector(doc)
-                    .OfClass(typeof(CableTray))
-                    .WhereElementIsNotElementType()
-                    .Cast<CableTray>()
-                    .ToList();
-
-            if (trays.Count == 0)
-            {
-                _clashViewModel.LoadClashes(new List<ClashInfoDTOs>());
-
-                _clashViewModel.StatusText =
-                    "No cable trays in the host model.";
-
-                TaskDialog.Show(
-                    "Clash Detection",
-                    "No cable trays were found in the host model.");
-
-                return;
-            }
-
-            List<Element> obstructions = CollectObstructions(doc);
-
-            if (obstructions.Count == 0)
-            {
-                _clashViewModel.LoadClashes(new List<ClashInfoDTOs>());
-
-                _clashViewModel.StatusText =
-                    "No elements to check against. Tick at least one model.";
-
-                TaskDialog.Show(
-                    "Clash Detection",
-                    "None of the selected models contain duct, pipe, "
-                    + "conduit or cable tray elements to check against.");
-
-                return;
-            }
-
-            List<ClashInfoDTOs> clashes =
-                new GeometricUtilities()
-                    .FindClashes(trays, obstructions, settings);
-
-            _clashViewModel.LoadClashes(clashes);
-
-            _clashViewModel.StatusText =
-                $"{clashes.Count} clash(es) found in {trays.Count} tray(s).";
-
-            TaskDialog.Show(
-                "Clash Detection",
-                clashes.Count > 0
-                    ? $"Total : {clashes.Count} clash(es) found"
-                    : "No clash found.");
-        }
-
-        /// <summary>
-        /// Builds the list of elements the trays are checked against, honouring
-        /// the "Clash Check Model" ticks. Cable trays in the host model are
-        /// excluded: a tray bypassing another tray is not what this tool
-        /// resolves, and every tray would otherwise clash with its neighbours.
-        /// </summary>
-        private List<Element> CollectObstructions(Document doc)
-        {
-            var obstructions = new List<Element>();
-
-            if (_clashViewModel.IsHostModelSelected)
-            {
-                var hostCategories =
-                    ObstructionCategories
-                        .Where(c => c != BuiltInCategory.OST_CableTray)
-                        .ToList();
-
-                obstructions.AddRange(
-                    new FilteredElementCollector(doc)
-                        .WhereElementIsNotElementType()
-                        .WherePasses(
-                            new ElementMulticategoryFilter(hostCategories))
-                        .ToList());
-            }
-
-            var selectedLinkIds =
-                _clashViewModel.GetSelectedLinkInstanceIds();
-
-            var linkFilter =
-                new ElementMulticategoryFilter(ObstructionCategories.ToList());
-
-            List<RevitLinkInstance> linkInstances =
-                new FilteredElementCollector(doc)
-                    .OfClass(typeof(RevitLinkInstance))
-                    .Cast<RevitLinkInstance>()
-                    .ToList();
-
-            foreach (RevitLinkInstance linkInstance in linkInstances)
-            {
-                // A null set means the model list was never loaded, so fall
-                // back to checking every link rather than finding nothing.
-                if (selectedLinkIds != null &&
-                    !selectedLinkIds.Contains(linkInstance.Id))
+                foreach (var cat in selectedCategories)
                 {
-                    continue;
-                }
-
-                Document linkDocument = linkInstance.GetLinkDocument();
-
-                if (linkDocument == null)
-                    continue;
-
-                obstructions.AddRange(
-                    new FilteredElementCollector(linkDocument)
+                    var elems = new FilteredElementCollector(doc)
+                        .OfCategory(cat)
                         .WhereElementIsNotElementType()
-                        .WherePasses(linkFilter)
-                        .ToList());
+                        .ToElements();
+                    hostObstructions.AddRange(elems);
+                }
             }
 
-            return obstructions;
+            // Harvest Linked Elements with Parent Instance Transforms
+            var linkInstances = new FilteredElementCollector(doc)
+                .OfClass(typeof(RevitLinkInstance))
+                .Cast<RevitLinkInstance>();
+
+            foreach (var link in linkInstances)
+            {
+                if (selectedLinkIds != null && !selectedLinkIds.Contains(link.Id))
+                    continue;
+
+                Document linkDoc = link.GetLinkDocument();
+                if (linkDoc == null) continue;
+
+                foreach (var cat in selectedCategories)
+                {
+                    var elems = new FilteredElementCollector(linkDoc)
+                        .OfCategory(cat)
+                        .WhereElementIsNotElementType()
+                        .ToElements();
+
+                    foreach (var elem in elems)
+                    {
+                        linkedObstructions.Add((link, elem));
+                    }
+                }
+            }
+
+            // Ingest into Spatial Hash
+            _spatialIndex = new LocalSpatialIndex(cellSizeMm: 1000.0);
+            _spatialIndex.IngestElements(doc, hostObstructions, linkedObstructions);
+
+            GeometricUtilities geomUtils = new GeometricUtilities { SpatialIndex = _spatialIndex };
+
+            List<CableTray> trays = new FilteredElementCollector(doc)
+                .OfClass(typeof(CableTray))
+                .WhereElementIsNotElementType()
+                .Cast<CableTray>()
+                .ToList();
+
+            List<Element> allObstructions = new List<Element>(hostObstructions);
+            allObstructions.AddRange(linkedObstructions.Select(x => x.Element));
+
+            RouteSettingDTOs settings = _viewModel.BuildRouteSettings();
+            List<ClashInfoDTOs> clashes = geomUtils.FindClashes(trays, allObstructions, settings);
+
+            _viewModel.LoadClashes(clashes);
         }
 
         private void ResolveSelected(UIApplication app)
         {
-            List<ClashGridItemViewModel> rows =
-                SelectedClashes?.ToList()
-                ?? new List<ClashGridItemViewModel>();
+            UIDocument uidoc = app.ActiveUIDocument;
+            Document doc = uidoc.Document;
+            RouteSettingDTOs settings = _viewModel.BuildRouteSettings();
 
-            SelectedClashes = null;
+            GeometricUtilities geomUtils = new GeometricUtilities { SpatialIndex = _spatialIndex };
 
-            if (rows.Count == 0)
+            using (Transaction tx = new Transaction(doc, "Resolve Cable Tray Clashes"))
             {
-                _clashViewModel.StatusText = "Nothing selected to resolve.";
-                return;
-            }
+                tx.Start();
 
-            RouteSettingDTOs settings =
-                _clashViewModel.BuildRouteSettings();
-
-            var resolver = new ClashResolver();
-
-            int resolved = 0;
-            int failed = 0;
-
-            foreach (ClashGridItemViewModel row in rows)
-            {
-                bool success = false;
-
-                try
+                foreach (var item in SelectedClashes)
                 {
-                    success =
-                        resolver.ResolveSelectedClash(
-                            app,
-                            row.ClashInfo,
-                            settings);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log(
-                        $"{row.ClashId}: resolve threw - {ex.Message}");
-                }
+                    if (item.IsResolved) continue;
 
-                _clashViewModel.ReportResolveResult(row, success);
-
-                if (success)
-                    resolved++;
-                else
-                    failed++;
-            }
-
-            _clashViewModel.StatusText =
-                $"Resolved {resolved} of {rows.Count} clash(es).";
-
-            // Report what actually happened - this used to always claim
-            // success even when every route failed.
-            TaskDialog.Show(
-                "Clash Resolve",
-                failed == 0
-                    ? $"{resolved} clash(es) resolved successfully."
-                    : $"{resolved} resolved, {failed} failed.\n\n"
-                      + "See the log on your Desktop "
-                      + "(CableTrayResolver.log) for details.");
-        }
-
-        private void ResolveAll(UIApplication app)
-        {
-            SelectedClashes = _clashViewModel.Clashes.ToList();
-
-            ResolveSelected(app);
-        }
-
-        private void PreviewRoute(UIApplication app)
-        {
-            ClashInfoDTOs clash =
-                _clashViewModel.SelectedClash?.ClashInfo;
-
-            if (clash == null)
-                return;
-
-            // Compute the 2D schematic preview (cheap, pure geometry).
-            _clashViewModel.UpdatePreview(
-                BuildPreviewData(clash, _clashViewModel.BuildRouteSettings()));
-
-            if (clash.Intersection == null || clash.Tray == null)
-            {
-                _clashViewModel.StatusText =
-                    "This clash has no intersection geometry to preview.";
-
-                return;
-            }
-
-            CreatePreviewView(app, clash);
-        }
-
-        /// <summary>
-        /// Recomputes the 2D schematic only (no Revit 3D view churn) when the
-        /// user changes a route parameter or the detour direction.
-        /// </summary>
-        private void UpdateBypassPreview(UIApplication app)
-        {
-            ClashInfoDTOs clash =
-                _clashViewModel.SelectedClash?.ClashInfo;
-
-            if (clash?.Tray == null || clash.ClashElement == null)
-            {
-                _clashViewModel.UpdatePreview(
-                    new PreviewRouteData
+                    if (geomUtils.TryBuildBypassRoutingPoints(item.ClashInfo, settings, out List<XYZ> routePoints))
                     {
-                        IsValid = false,
-                        Message = "No clash selected."
-                    });
+                        var created = CreateNewBypassRoute.CreateNewRoute(
+                            doc,
+                            item.ClashInfo.Tray,
+                            routePoints[0],
+                            routePoints[routePoints.Count - 1],
+                            routePoints,
+                            settings);
 
-                return;
+                        if (created != null && created.Count > 0)
+                        {
+                            _viewModel.ReportResolveResult(item, true);
+                        }
+                        else
+                        {
+                            _viewModel.ReportResolveResult(item, false);
+                        }
+                    }
+                    else
+                    {
+                        _viewModel.ReportResolveResult(item, false);
+                    }
+                }
+
+                tx.Commit();
             }
-
-            _clashViewModel.UpdatePreview(
-                BuildPreviewData(clash, _clashViewModel.BuildRouteSettings()));
         }
 
-        /// <summary>
-        /// Builds the side-view (station vs elevation) preview from the same
-        /// bypass solver used by Accept, so what the user sees is what gets
-        /// built. Uses <see cref="GeometricUtilities.TryBuildBypassRoutingPoints"/>.
-        /// </summary>
-        private static PreviewRouteData BuildPreviewData(
-            ClashInfoDTOs clash,
-            RouteSettingDTOs settings)
+        private void UpdatePreview(UIApplication app)
+        {
+            if (_viewModel.SelectedClash?.ClashInfo == null) return;
+            var settings = _viewModel.BuildRouteSettings();
+            var preview = BuildPreviewData(_viewModel.SelectedClash.ClashInfo, settings);
+            _viewModel.UpdatePreview(preview);
+        }
+
+        public PreviewRouteData BuildPreviewData(ClashInfoDTOs clash, RouteSettingDTOs settings)
         {
             var data = new PreviewRouteData();
-
-            LocationCurve trayLocation =
-                clash.Tray.Location as LocationCurve;
-
-            Line trayLine = trayLocation?.Curve as Line;
-
-            if (trayLine == null)
+            if (clash?.Tray == null || clash.ClashElement == null)
             {
-                data.Message = "Only straight cable trays can be previewed.";
+                data.Message = "No valid clash data.";
+                return data;
+            }
+
+            if (!(clash.Tray.Location is LocationCurve lc) || !(lc.Curve is Line trayLine))
+            {
+                data.Message = "Selected tray is not straight.";
                 return data;
             }
 
             XYZ start = trayLine.GetEndPoint(0);
             XYZ end = trayLine.GetEndPoint(1);
-            XYZ dir = (end - start).Normalize();
+            XYZ trayDir = (end - start).Normalize();
+            double trayLength = start.DistanceTo(end);
 
-            data.TrayLengthMm = start.DistanceTo(end) * 304.8;
+            data.TrayLengthMm = trayLength * 304.8;
 
-            var utils = new GeometricUtilities();
-            bool routeOk = utils.TryBuildBypassRoutingPoints(
-                clash, settings, out List<XYZ> points);
+            var utils = new GeometricUtilities { SpatialIndex = _spatialIndex };
 
-            BoundingBoxXYZ elemBox =
-                clash.ClashElement?.get_BoundingBox(null);
+            List<XYZ> points;
+            bool routeOk = utils.TryBuildBypassRoutingPoints(clash, settings, out points);
 
-            if (elemBox != null)
+            if (routeOk && points != null && points.Count >= 2)
             {
-                double minProj = double.MaxValue;
-                double maxProj = double.MinValue;
-
-                double[] xs = { elemBox.Min.X, elemBox.Max.X };
-                double[] ys = { elemBox.Min.Y, elemBox.Max.Y };
-                double[] zs = { elemBox.Min.Z, elemBox.Max.Z };
-
-                foreach (double x in xs)
-                foreach (double y in ys)
-                foreach (double z in zs)
+                data.RoutePoints = new List<PreviewPoint>();
+                foreach (var pt in points)
                 {
-                    XYZ corner = new XYZ(x, y, z);
-                    double proj = (corner - start).DotProduct(dir);
-                    minProj = Math.Min(minProj, proj);
-                    maxProj = Math.Max(maxProj, proj);
-                }
-
-                data.ClashStationMinMm = minProj * 304.8;
-                data.ClashStationMaxMm = maxProj * 304.8;
-                data.ClashMinElevationMm = (elemBox.Min.Z - start.Z) * 304.8;
-                data.ClashMaxElevationMm = (elemBox.Max.Z - start.Z) * 304.8;
-            }
-
-            if (routeOk && points != null && points.Count >= 4)
-            {
-                data.IsValid = true;
-                data.Message = "Route preview";
-
-                foreach (XYZ pt in points)
-                {
-                    double station = (pt - start).DotProduct(dir) * 304.8;
+                    double station = (pt - start).DotProduct(trayDir) * 304.8;
                     double elevation = (pt.Z - start.Z) * 304.8;
-                    data.RoutePoints.Add((station, elevation));
+                    data.RoutePoints.Add(new PreviewPoint { Station = station, Elevation = elevation, Point = pt });
                 }
 
-                data.IsDetourUp = points[1].Z > points[0].Z;
-                data.RiseMm = Math.Abs(points[1].Z - points[0].Z) * 304.8;
+                double maxDeltaZ = points.Max(p => Math.Abs(p.Z - start.Z));
+                data.RiseMm = maxDeltaZ * 304.8;
+                data.IsDetourUp = points.Any(p => p.Z > start.Z + 1e-4);
                 data.ClearanceMm = settings.MinimumClearance * 304.8;
             }
             else
             {
-                data.Message =
-                    "Route not feasible with current parameters.";
+                data.Message = "Cannot resolve route with current clearance parameters.";
+            }
+
+            // Harvest Extended Environmental Obstacles for UI Preview Canvas
+            data.SecondaryObstacles.Clear();
+            double clashStation = 0.0;
+            try
+            {
+                XYZ cPt = clash.Intersection?.ComputeCentroid();
+                if (cPt != null) clashStation = (cPt - start).DotProduct(trayDir);
+            }
+            catch { }
+
+            if (_spatialIndex != null)
+            {
+                double extSpan = 4000.0 / 304.8; // 4m envelope
+                XYZ roiCenter = start + trayDir * clashStation;
+                BoundingBoxXYZ extBox = new BoundingBoxXYZ
+                {
+                    Min = new XYZ(roiCenter.X - extSpan, roiCenter.Y - extSpan, roiCenter.Z - (2500.0 / 304.8)),
+                    Max = new XYZ(roiCenter.X + extSpan, roiCenter.Y + extSpan, roiCenter.Z + (2500.0 / 304.8))
+                };
+
+                List<ObstacleBounds> nearby = _spatialIndex.QueryRoi(extBox);
+                foreach (var obs in nearby)
+                {
+                    if (obs.Id == clash.Tray.UniqueId) continue;
+
+                    XYZ[] corners = new XYZ[]
+                    {
+                        new XYZ(obs.Box.Min.X, obs.Box.Min.Y, obs.Box.Min.Z),
+                        new XYZ(obs.Box.Max.X, obs.Box.Min.Y, obs.Box.Min.Z),
+                        new XYZ(obs.Box.Min.X, obs.Box.Max.Y, obs.Box.Min.Z),
+                        new XYZ(obs.Box.Max.X, obs.Box.Max.Y, obs.Box.Min.Z),
+                        new XYZ(obs.Box.Min.X, obs.Box.Min.Y, obs.Box.Max.Z),
+                        new XYZ(obs.Box.Max.X, obs.Box.Min.Y, obs.Box.Max.Z),
+                        new XYZ(obs.Box.Min.X, obs.Box.Max.Y, obs.Box.Max.Z),
+                        new XYZ(obs.Box.Max.X, obs.Box.Max.Y, obs.Box.Max.Z)
+                    };
+
+                    double sMin = corners.Min(c => (c - start).DotProduct(trayDir)) * 304.8;
+                    double sMax = corners.Max(c => (c - start).DotProduct(trayDir)) * 304.8;
+                    double eMin = corners.Min(c => c.Z - start.Z) * 304.8;
+                    double eMax = corners.Max(c => c.Z - start.Z) * 304.8;
+
+                    if (obs.Id == clash.ClashElement.UniqueId)
+                    {
+                        data.ClashStationMinMm = sMin;
+                        data.ClashStationMaxMm = sMax;
+                        data.ClashMinElevationMm = eMin;
+                        data.ClashMaxElevationMm = eMax;
+                    }
+                    else
+                    {
+                        data.SecondaryObstacles.Add(new PreviewObstacleBox
+                        {
+                            StationMinMm = sMin,
+                            StationMaxMm = sMax,
+                            ElevationMinMm = eMin,
+                            ElevationMaxMm = eMax
+                        });
+                    }
+                }
             }
 
             return data;
         }
-
-        private void CreatePreviewView(
-                        UIApplication app,
-                        ClashInfoDTOs clash)
+        public static bool IsRouteFeasible(ClashInfoDTOs clash, RouteSettingDTOs settings)
         {
-            UIDocument uiDoc = app.ActiveUIDocument;
+            if (clash?.Tray == null || clash.ClashElement == null || settings == null)
+                return false;
 
-            Document doc = uiDoc?.Document;
-
-            if (doc == null)
-                return;
-
-            ViewFamilyType viewType =
-                new FilteredElementCollector(doc)
-                    .OfClass(typeof(ViewFamilyType))
-                    .Cast<ViewFamilyType>()
-                    .FirstOrDefault(x =>
-                        x.ViewFamily == ViewFamily.ThreeDimensional);
-
-            if (viewType == null)
-            {
-                _clashViewModel.StatusText =
-                    "No 3D view family type available for previews.";
-
-                return;
-            }
-
-            // Revit refuses to delete the active view, so step off any preview
-            // view before the cleanup transaction runs.
-            LeavePreviewView(uiDoc);
-
-            XYZ centre = clash.Intersection.ComputeCentroid();
-
-            bool clashElementIsInHost =
-                clash.ClashElement != null &&
-                clash.ClashElement.Document != null &&
-                clash.ClashElement.Document.Equals(doc);
-
-            View3D view;
-
-            using (Transaction tx =
-                new Transaction(doc, "Resolver Preview"))
-            {
-                tx.Start();
-
-                DeleteOldPreviewViews(doc);
-
-                view = View3D.CreateIsometric(doc, viewType.Id);
-
-                // The view MUST be named: cleanup finds previous previews by
-                // this prefix, and an unnamed view was never matched.
-                view.Name = BuildUniquePreviewName(doc);
-
-                view.SetSectionBox(
-                    new BoundingBoxXYZ
-                    {
-                        Min = centre - new XYZ(5, 5, 5),
-                        Max = centre + new XYZ(5, 5, 5)
-                    });
-
-                ApplyPreviewGraphics(view, clash, clashElementIsInHost);
-
-                tx.Commit();
-            }
-
-            uiDoc.ActiveView = view;
-
-            _clashViewModel.StatusText =
-                clashElementIsInHost
-                    ? $"Previewing {_clashViewModel.SelectedClash?.ClashId}."
-                    : $"Previewing {_clashViewModel.SelectedClash?.ClashId} "
-                      + "(linked element shown in context).";
-        }
-
-        /// <summary>
-        /// Colours the tray and, when it lives in the host document, the
-        /// clashing element. Element ids from a linked document are not valid
-        /// in the host document, so isolation and overrides are skipped for
-        /// linked clashes and the section box alone frames the clash.
-        /// </summary>
-        private static void ApplyPreviewGraphics(
-                                View3D view,
-                                ClashInfoDTOs clash,
-                                bool clashElementIsInHost)
-        {
-            Document doc = view.Document;
-
-            var trayOverride =
-                new OverrideGraphicSettings()
-                    .SetProjectionLineColor(new Color(0, 170, 0))
-                    .SetProjectionLineWeight(6);
-
-            if (clash.Tray != null &&
-                clash.Tray.Document != null &&
-                clash.Tray.Document.Equals(doc))
-            {
-                view.SetElementOverrides(clash.Tray.Id, trayOverride);
-            }
-
-            if (!clashElementIsInHost)
-                return;
-
-            var clashOverride =
-                new OverrideGraphicSettings()
-                    .SetProjectionLineColor(new Color(200, 0, 0))
-                    .SetProjectionLineWeight(6);
-
-            view.SetElementOverrides(clash.ClashElement.Id, clashOverride);
-        }
-
-        /// <summary>
-        /// Remembers the user's own view the first time a preview is opened and
-        /// makes sure the active view is not a preview, which Revit would
-        /// refuse to delete.
-        /// </summary>
-        private void LeavePreviewView(UIDocument uiDoc)
-        {
-            View active = uiDoc.ActiveView;
-
-            if (active == null)
-                return;
-
-            if (!IsPreviewView(active))
-            {
-                _viewBeforePreview = active.Id;
-                return;
-            }
-
-            View fallback = FindViewToReturnTo(uiDoc.Document, active.Id);
-
-            if (fallback != null)
-                uiDoc.ActiveView = fallback;
-        }
-
-        /// <summary>
-        /// Picks the view to drop the user back into: the one they were on
-        /// before the first preview when it still exists, otherwise any
-        /// non-preview, non-template graphical view.
-        /// </summary>
-        private View FindViewToReturnTo(Document doc, ElementId currentViewId)
-        {
-            if (_viewBeforePreview != null &&
-                _viewBeforePreview != currentViewId)
-            {
-                if (doc.GetElement(_viewBeforePreview) is View remembered &&
-                    !remembered.IsTemplate &&
-                    !IsPreviewView(remembered))
-                {
-                    return remembered;
-                }
-            }
-
-            return new FilteredElementCollector(doc)
-                .OfClass(typeof(View))
-                .Cast<View>()
-                .FirstOrDefault(v =>
-                    !v.IsTemplate &&
-                    v.Id != currentViewId &&
-                    !IsPreviewView(v) &&
-                    v.CanBePrinted);
-        }
-
-        private void DiscardPreview(UIApplication app)
-        {
-            UIDocument uiDoc = app.ActiveUIDocument;
-
-            Document doc = uiDoc?.Document;
-
-            if (doc == null)
-                return;
-
-            LeavePreviewView(uiDoc);
-
-            using (Transaction tx =
-                new Transaction(doc, "Discard Resolver Preview"))
-            {
-                tx.Start();
-
-                DeleteOldPreviewViews(doc);
-
-                tx.Commit();
-            }
-        }
-
-        /// <summary>
-        /// Ends the session: drops any preview view, puts the user back where
-        /// they started and closes the pane.
-        /// </summary>
-        private void FinishSession(UIApplication app)
-        {
-            DiscardPreview(app);
-
-            _viewBeforePreview = null;
-
-            _clashViewModel.StatusText = "Session finished.";
-
-            try
-            {
-                DockablePane pane =
-                    app.GetDockablePane(AddInApplication.ResolverPaneId);
-
-                pane?.Hide();
-            }
-            catch (Exception ex)
-            {
-                // Hiding the pane is a convenience, never a reason to fail.
-                Logger.Log($"Could not hide the Resolver pane: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Deletes every view this tool created earlier. Must be called inside
-        /// an open transaction, and never while one of them is active.
-        /// </summary>
-        private static void DeleteOldPreviewViews(Document doc)
-        {
-            List<ElementId> stale =
-                new FilteredElementCollector(doc)
-                    .OfClass(typeof(View3D))
-                    .Cast<View3D>()
-                    .Where(v => !v.IsTemplate && IsPreviewView(v))
-                    .Select(v => v.Id)
-                    .ToList();
-
-            if (stale.Count == 0)
-                return;
-
-            try
-            {
-                doc.Delete(stale);
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"Preview cleanup failed: {ex.Message}");
-            }
-        }
-
-        private static bool IsPreviewView(View view)
-        {
-            return view != null &&
-                   !string.IsNullOrEmpty(view.Name) &&
-                   view.Name.StartsWith(
-                       PreviewViewPrefix,
-                       StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Revit throws when a view name is already taken, which happens as
-        /// soon as an old preview survived cleanup.
-        /// </summary>
-        private static string BuildUniquePreviewName(Document doc)
-        {
-            var taken =
-                new HashSet<string>(
-                    new FilteredElementCollector(doc)
-                        .OfClass(typeof(View))
-                        .Cast<View>()
-                        .Select(v => v.Name)
-                        .Where(n => !string.IsNullOrEmpty(n)),
-                    StringComparer.OrdinalIgnoreCase);
-
-            for (int i = 1; ; i++)
-            {
-                string candidate = $"{PreviewViewPrefix} {i}";
-
-                if (!taken.Contains(candidate))
-                    return candidate;
-            }
+            var utils = new GeometricUtilities();
+            return utils.TryBuildBypassRoutingPoints(clash, settings, out var points);
         }
     }
 }
