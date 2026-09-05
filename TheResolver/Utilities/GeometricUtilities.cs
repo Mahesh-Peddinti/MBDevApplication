@@ -90,6 +90,11 @@ namespace TheResolver.Utilities
             return result;
         }
 
+        /// <summary>
+        /// Generates an adaptive, free-angle detour path utilizing intermediate 
+        /// free spaces (porous corridor slots) between obstacles with dynamic ramp compression 
+        /// and swept envelope checks for edge cases.
+        /// </summary>
         public bool TryBuildBypassRoutingPoints(ClashInfoDTOs clash, RouteSettingDTOs settings, out List<XYZ> points)
         {
             points = new List<XYZ>();
@@ -104,6 +109,7 @@ namespace TheResolver.Utilities
             XYZ trayDirection = (end - start).Normalize();
             double trayLength = start.DistanceTo(end);
 
+            // 1. Determine Clash Station along the tray axis with fallback
             XYZ clashCentroid = null;
             try { clashCentroid = clash.Intersection?.ComputeCentroid(); } catch { }
 
@@ -127,6 +133,7 @@ namespace TheResolver.Utilities
             double clashStation = (clashCentroid - start).DotProduct(trayDirection);
             double searchSpan = 3500.0 * MM;
 
+            // 2. Query Local Spatial Index for all nearby candidate obstacles
             XYZ roiCenter = start + trayDirection * clashStation;
             BoundingBoxXYZ roiBox = new BoundingBoxXYZ
             {
@@ -145,6 +152,7 @@ namespace TheResolver.Utilities
                     localObstacles.Add(new ObstacleBounds { Id = clash.ClashElement.UniqueId, Box = pBox, Element = clash.ClashElement });
             }
 
+            // 3. Tray dimensions & clearances
             double trayHeight = clash.Tray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)?.AsDouble() ?? (100 * MM);
             double trayWidth = clash.Tray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)?.AsDouble() ?? (300 * MM);
             double requiredClearance = settings.MinimumClearance;
@@ -152,6 +160,7 @@ namespace TheResolver.Utilities
 
             XYZ lateralDir = trayDirection.CrossProduct(XYZ.BasisZ).Normalize();
 
+            // 4. Project obstacles into 2D [Station, Z] intervals intersecting the tray width corridor
             List<RectInterval> allCorridorObstacles = new List<RectInterval>();
             foreach (var obs in localObstacles)
             {
@@ -171,9 +180,11 @@ namespace TheResolver.Utilities
                     stMax = Math.Max(stMax, s);
                 });
 
+                // Obstacle must overlap the tray horizontal clearance corridor
                 if (latProjMax < -halfWidth || latProjMin > halfWidth)
                     continue;
 
+                // Obstacle must be within our ROI along the run
                 if (stMax < clashStation - searchSpan || stMin > clashStation + searchSpan)
                     continue;
 
@@ -189,7 +200,7 @@ namespace TheResolver.Utilities
             if (allCorridorObstacles.Count == 0)
                 return false;
 
-            // Target Elevation Selection (Interval Window Slicing with Bottom Clearance Rule)
+            // 5. Target Elevation Selection (Interval Window Slicing with Bottom Clearance Rule)
             double origZ = start.Z;
             double targetElevation;
             if (!TryFindOptimalElevationSlot(
@@ -204,7 +215,7 @@ namespace TheResolver.Utilities
                 return false;
             }
 
-            // Contextual Filtering: Keep ONLY obstacles that occupy the vertical elevation band of this route
+            // 6. Contextual Filtering: Keep ONLY obstacles that occupy the vertical elevation band of this route
             double routeZMin = Math.Min(origZ, targetElevation) - (trayHeight * 0.5 + requiredClearance);
             double routeZMax = Math.Max(origZ, targetElevation) + (trayHeight * 0.5 + requiredClearance);
 
@@ -215,32 +226,91 @@ namespace TheResolver.Utilities
             if (activeObstacles.Count == 0)
                 activeObstacles = allCorridorObstacles;
 
-            // Horizontal Symmetry centered around active clash cluster
+            // 7. Base Plateau Stationing centered symmetrically around active cluster
             double clusterStMin = activeObstacles.Min(o => o.StationMin);
             double clusterStMax = activeObstacles.Max(o => o.StationMax);
             double clusterCenter = (clusterStMin + clusterStMax) * 0.5;
             double plateauHalfLength = Math.Max(settings.MinimumSideOffset, (clusterStMax - clusterStMin) * 0.5);
 
-            double angleRad = settings.BendAngle * Math.PI / 180.0;
             double deltaZ = targetElevation - origZ;
             double absDeltaZ = Math.Abs(deltaZ);
 
-            if (absDeltaZ < 10.0 * MM)
+            if (absDeltaZ < 5.0 * MM)
                 return false;
 
-            double rampRun = absDeltaZ / Math.Tan(angleRad);
+            // 8. Calculate Free Angle Ramp / Transition
+            double angleDeg = settings.BendAngle > 0 ? settings.BendAngle : 30.0;
+            double angleRad = angleDeg * Math.PI / 180.0;
             double tangentLength = settings.BendRadius * Math.Tan(angleRad * 0.5);
-            rampRun = Math.Max(rampRun, 60.0 * MM) + tangentLength;
+            double rampRun = (absDeltaZ / Math.Tan(angleRad)) + tangentLength;
+            rampRun = Math.Max(rampRun, 60.0 * MM);
 
             double s2 = clusterCenter - plateauHalfLength;
             double s3 = clusterCenter + plateauHalfLength;
             double s1 = s2 - rampRun;
             double s4 = s3 + rampRun;
 
-            double minMargin = 50.0 * MM;
-            if (s1 < minMargin || s4 > (trayLength - minMargin))
+            // 9. EDGE CASE FIX 1: End-of-Run Compression (Handle Clashes Near Tray Ends)
+            double minEndMargin = 30.0 * MM;
+
+            if (s1 < minEndMargin || s4 > (trayLength - minEndMargin))
+            {
+                double availableRunStart = Math.Max(10.0 * MM, s2 - minEndMargin);
+                double availableRunEnd = Math.Max(10.0 * MM, (trayLength - minEndMargin) - s3);
+                double maxFeasibleRun = Math.Min(availableRunStart, availableRunEnd);
+
+                if (maxFeasibleRun > 40.0 * MM)
+                {
+                    rampRun = maxFeasibleRun;
+                    s1 = s2 - rampRun;
+                    s4 = s3 + rampRun;
+                }
+                else
+                {
+                    s1 = Math.Max(minEndMargin, s1);
+                    s4 = Math.Min(trayLength - minEndMargin, s4);
+                    if (s2 <= s1 + 10 * MM || s4 <= s3 + 10 * MM)
+                        return false;
+                }
+            }
+
+            // 10. EDGE CASE FIX 2: Sloped Ramp Obstacle Swept Clearance Expansion
+            foreach (var obs in allCorridorObstacles)
+            {
+                // Check leading ramp transition (s1 -> s2)
+                if (obs.StationMax > s1 && obs.StationMin < s2)
+                {
+                    if (obs.ZMax > Math.Min(origZ, targetElevation) && obs.ZMin < Math.Max(origZ, targetElevation))
+                    {
+                        double requiredS1 = obs.StationMin - rampRun;
+                        if (requiredS1 >= minEndMargin)
+                        {
+                            s1 = requiredS1;
+                            s2 = obs.StationMin;
+                        }
+                    }
+                }
+
+                // Check trailing ramp transition (s3 -> s4)
+                if (obs.StationMin < s4 && obs.StationMax > s3)
+                {
+                    if (obs.ZMax > Math.Min(origZ, targetElevation) && obs.ZMin < Math.Max(origZ, targetElevation))
+                    {
+                        double requiredS4 = obs.StationMax + rampRun;
+                        if (requiredS4 <= (trayLength - minEndMargin))
+                        {
+                            s3 = obs.StationMax;
+                            s4 = requiredS4;
+                        }
+                    }
+                }
+            }
+
+            // Final boundary validation
+            if (s1 < minEndMargin || s4 > (trayLength - minEndMargin) || s2 <= s1 || s4 <= s3)
                 return false;
 
+            // 11. Construct 3D Bypass Points
             XYZ p1 = start + trayDirection * s1;
             XYZ p2 = start + trayDirection * s2 + XYZ.BasisZ * deltaZ;
             XYZ p3 = start + trayDirection * s3 + XYZ.BasisZ * deltaZ;
@@ -258,69 +328,76 @@ namespace TheResolver.Utilities
         }
 
         private static bool TryFindOptimalElevationSlot(
-            double origZ,
-            double trayHeight,
-            double clearance,
-            RouteDirection preferredDir,
-            List<RectInterval> obstacles,
-            double clashStation,
-            out double selectedZ)
+    double origZ,
+    double trayHeight,
+    double clearance,
+    RouteDirection preferredDir,
+    List<RectInterval> obstacles,
+    double clashStation,
+    out double selectedZ)
         {
             selectedZ = origZ;
 
-            var localObstacles = obstacles
-                .Where(o => o.StationMin <= clashStation + 1500 * MM && o.StationMax >= clashStation - 1500 * MM)
+            // 1. TIGHT FILTER: Only consider obstacles that directly overlap the clash point
+            // Using a tight 400mm window prevents distant lower pipes from pulling down the route
+            double localBand = 400.0 * MM;
+            var directObstacles = obstacles
+                .Where(o => o.StationMin <= clashStation + localBand && o.StationMax >= clashStation - localBand)
                 .OrderBy(o => o.ZMin)
                 .ToList();
 
-            if (localObstacles.Count == 0)
-                localObstacles = obstacles.OrderBy(o => o.ZMin).ToList();
+            if (directObstacles.Count == 0)
+                directObstacles = obstacles.OrderBy(o => o.ZMin).ToList();
 
-            // Distinct physical obstacle layers sorted vertically
+            // 2. Identify the direct obstacle stack bounds
+            double localStackZMin = directObstacles.Min(o => o.ZMin);
+            double localStackZMax = directObstacles.Max(o => o.ZMax);
+
+            // 3. Build distinct vertical layers for pocket detection
             var distinctLayers = new List<(double Bottom, double Top)>();
-            var cur = (localObstacles[0].ZMin, localObstacles[0].ZMax);
+            var cur = (directObstacles[0].ZMin, directObstacles[0].ZMax);
 
-            for (int i = 1; i < localObstacles.Count; i++)
+            for (int i = 1; i < directObstacles.Count; i++)
             {
-                if (localObstacles[i].ZMin <= cur.Item2 + 20 * MM)
+                if (directObstacles[i].ZMin <= cur.Item2 + 20 * MM)
                 {
-                    cur = (cur.Item1, Math.Max(cur.Item2, localObstacles[i].ZMax));
+                    cur = (cur.Item1, Math.Max(cur.Item2, directObstacles[i].ZMax));
                 }
                 else
                 {
                     distinctLayers.Add(cur);
-                    cur = (localObstacles[i].ZMin, localObstacles[i].ZMax);
+                    cur = (directObstacles[i].ZMin, directObstacles[i].ZMax);
                 }
             }
             distinctLayers.Add(cur);
 
             var candidateSlots = new List<(double TargetZ, double DeltaFromOrig, bool IsUp)>();
 
-            // Option 1: Route Below the lowest layer
-            double belowCenterZ = distinctLayers.First().Bottom - clearance - (trayHeight * 0.5);
+            // Option 1: Route Below the immediate obstacle stack
+            // Tray TOP sits exactly 'clearance' below the bottom of the immediate obstacle
+            double belowCenterZ = localStackZMin - clearance - (trayHeight * 0.5);
             candidateSlots.Add((belowCenterZ, Math.Abs(belowCenterZ - origZ), false));
 
-            // Option 2: Route Above the highest layer
-            double aboveCenterZ = distinctLayers.Last().Top + clearance + (trayHeight * 0.5);
+            // Option 2: Route Above the immediate obstacle stack
+            // Tray BOTTOM sits exactly 'clearance' above the top of the immediate obstacle
+            double aboveCenterZ = localStackZMax + clearance + (trayHeight * 0.5);
             candidateSlots.Add((aboveCenterZ, Math.Abs(aboveCenterZ - origZ), true));
 
-            // Option 3: Pocket spaces (Interstices) with Bottom-of-Tray locked to exact Clearance
+            // Option 3: Pocket spaces (Interstices) within the stack
             for (int i = 0; i < distinctLayers.Count - 1; i++)
             {
-                double obstacleBelowTop = distinctLayers[i].Top;
-                double obstacleAboveBottom = distinctLayers[i + 1].Bottom;
-                double totalPocketGap = obstacleAboveBottom - obstacleBelowTop;
+                double gapBottom = distinctLayers[i].Top;
+                double gapTop = distinctLayers[i + 1].Bottom;
+                double gapHeight = gapTop - gapBottom;
 
-                // Test if the required envelope (Tray + bottom clearance + top clearance) fits
-                if (totalPocketGap >= (trayHeight + 2 * clearance))
+                if (gapHeight >= (trayHeight + 2 * clearance))
                 {
-                    // Centerline position guaranteeing exact clearance at the bottom
-                    double pocketCenterZ = obstacleBelowTop + clearance + (trayHeight * 0.5);
-                    bool isUp = pocketCenterZ >= origZ;
-                    candidateSlots.Add((pocketCenterZ, Math.Abs(pocketCenterZ - origZ), isUp));
+                    double pocketCenterZ = gapBottom + clearance + (trayHeight * 0.5);
+                    candidateSlots.Add((pocketCenterZ, Math.Abs(pocketCenterZ - origZ), pocketCenterZ >= origZ));
                 }
             }
 
+            // Filter by user direction preference
             if (preferredDir == RouteDirection.Up)
                 candidateSlots = candidateSlots.Where(s => s.IsUp).ToList();
             else if (preferredDir == RouteDirection.Down)
@@ -329,6 +406,7 @@ namespace TheResolver.Utilities
             if (candidateSlots.Count == 0)
                 return false;
 
+            // Select candidate with minimum displacement
             selectedZ = candidateSlots.OrderBy(s => s.DeltaFromOrig).First().TargetZ;
             return true;
         }

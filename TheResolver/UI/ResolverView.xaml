@@ -93,35 +93,38 @@
 
                     <!-- Host Model Box -->
                     <GroupBox Grid.Column="0" Header="Host Model"
-                              Foreground="{StaticResource AccentBrush}"
-                              FontWeight="Bold" FontSize="11"
-                              BorderBrush="{StaticResource AccentBrush}">
+          Foreground="{StaticResource AccentBrush}"
+          FontWeight="Bold" FontSize="11"
+          BorderBrush="{StaticResource AccentBrush}">
                         <StackPanel Margin="4,2">
                             <TextBlock Text="Model:" Style="{StaticResource FieldLabel}" Margin="0,2,0,1" />
-                            <ComboBox ItemsSource="{Binding HostModels}" Height="24">
+                            <ComboBox ItemsSource="{Binding HostModels}" 
+                  Height="24"
+                  IsEditable="True"
+                  IsReadOnly="True"
+                  Text="{Binding HostModelSummary, Mode=OneWay}">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <CheckBox Content="{Binding Name}"
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  Foreground="{StaticResource TextDark}"
-                                                  FontSize="11" />
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              Foreground="{StaticResource TextDark}"
+                              FontSize="11" />
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
 
                             <TextBlock Text="Categories:" Style="{StaticResource FieldLabel}" Margin="0,4,0,1" />
-                            <!-- Host Categories Combo with Header Display -->
                             <ComboBox ItemsSource="{Binding HostCategories}" 
-              Height="24"
-              IsEditable="True"
-              IsReadOnly="True"
-              Text="Select Categories...">      
+                  Height="24"
+                  IsEditable="True"
+                  IsReadOnly="True"
+                  Text="{Binding HostCategorySummary, Mode=OneWay}">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
-                                        <CheckBox Content="{Binding Name}" 
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Foreground="#333333" 
-                      FontSize="11" />
+                                        <CheckBox Content="{Binding Name}"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              Foreground="{StaticResource TextDark}"
+                              FontSize="11" />
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
@@ -130,35 +133,38 @@
 
                     <!-- Link Model(s) Box -->
                     <GroupBox Grid.Column="2" Header="Link Model(s)"
-                              Foreground="{StaticResource AccentBrush}"
-                              FontWeight="Bold" FontSize="11"
-                              BorderBrush="{StaticResource AccentBrush}">
+          Foreground="{StaticResource AccentBrush}"
+          FontWeight="Bold" FontSize="11"
+          BorderBrush="{StaticResource AccentBrush}">
                         <StackPanel Margin="4,2">
                             <TextBlock Text="Model(s):" Style="{StaticResource FieldLabel}" Margin="0,2,0,1" />
-                            <ComboBox ItemsSource="{Binding LinkModels}" Height="24">
+                            <ComboBox ItemsSource="{Binding LinkModels}" 
+                  Height="24"
+                  IsEditable="True"
+                  IsReadOnly="True"
+                  Text="{Binding LinkModelSummary, Mode=OneWay}">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <CheckBox Content="{Binding Name}"
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  Foreground="{StaticResource TextDark}"
-                                                  FontSize="11" />
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              Foreground="{StaticResource TextDark}"
+                              FontSize="11" />
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
 
                             <TextBlock Text="Categories:" Style="{StaticResource FieldLabel}" Margin="0,4,0,1" />
-                            <!-- Host Categories Combo with Header Display -->
                             <ComboBox ItemsSource="{Binding LinkCategories}" 
-                                      Height="24"
-                                      IsEditable="True"
-                                      IsReadOnly="True"
-                                      Text="Select Categories...">  
+                  Height="24"
+                  IsEditable="True"
+                  IsReadOnly="True"
+                  Text="{Binding LinkCategorySummary, Mode=OneWay}">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
-                                        <CheckBox Content="{Binding Name}" 
-                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  Foreground="#333333" 
-                                                  FontSize="11" />  
+                                        <CheckBox Content="{Binding Name}"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              Foreground="{StaticResource TextDark}"
+                              FontSize="11" />
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
@@ -289,16 +295,149 @@
         </DataGrid>
 
         <!-- Route Preview -->
+        <!-- Interactive 3D Viewport -->
+        <!-- Interactive 3D Viewport with Vector Icon Toolbar -->
         <Border Grid.Row="5" Margin="0,4,0,0" Style="{StaticResource SectionBorder}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="200" />
-                </Grid.RowDefinitions>
-                <TextBlock Text="Route Preview" FontWeight="Bold" Style="{StaticResource FieldLabel}" />
-                <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" Margin="0,2,0,0">
-                    <Canvas x:Name="PreviewCanvas" ClipToBounds="True" SizeChanged="PreviewCanvas_SizeChanged" />
+            <Grid Height="185">
+                <!-- 3D Viewport -->
+                <Viewport3D x:Name="View3D"
+                            ClipToBounds="True"
+                            MouseDown="Viewport_MouseDown"
+                            MouseMove="Viewport_MouseMove"
+                            MouseUp="Viewport_MouseUp"
+                            MouseWheel="Viewport_MouseWheel">
+                    <Viewport3D.Camera>
+                        <PerspectiveCamera x:Name="ViewportCamera"
+                                           Position="1500,-2500,1800"
+                                           LookDirection="-1500,2500,-1800"
+                                           UpDirection="0,0,1"
+                                           FieldOfView="45" />
+                    </Viewport3D.Camera>
+
+                    <ModelVisual3D>
+                        <ModelVisual3D.Content>
+                            <Model3DGroup>
+                                <AmbientLight Color="#707070" />
+                                <DirectionalLight Color="#FFFFFF" Direction="-1,1,-1" />
+                                <DirectionalLight Color="#808080" Direction="1,-1,1" />
+                            </Model3DGroup>
+                        </ModelVisual3D.Content>
+                    </ModelVisual3D>
+
+                    <ModelVisual3D x:Name="SceneVisual" />
+                </Viewport3D>
+
+                <!-- Floating Toolbar: Navigation & View Presets -->
+                <Border HorizontalAlignment="Right" 
+                        VerticalAlignment="Top" 
+                        Margin="6" 
+                        Background="#F5F8FF" 
+                        BorderBrush="{StaticResource AccentBrush}" 
+                        BorderThickness="1" 
+                        CornerRadius="3" 
+                        Padding="2">
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.Resources>
+                            <Style x:Key="NavIconButton" TargetType="Button">
+                                <Setter Property="Width" Value="24" />
+                                <Setter Property="Height" Value="22" />
+                                <Setter Property="Margin" Value="1" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Padding" Value="2" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#DDE8FF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Resources>
+
+                        <!-- Orbit Tool Active Toggle/Hint -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Orbit (Left Click + Drag)" Click="Tool_OrbitHint">
+                            <!-- Orbit Recycle/Rotate Path -->
+                            <Path Data="M 12 3 A 8 8 0 1 0 19 8 L 19 5 M 19 8 L 16 8" 
+                                  Stroke="{StaticResource AccentBrush}" 
+                                  StrokeThickness="1.5" 
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+
+                        <!-- Pan Tool Active Toggle/Hint -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Pan (Right/Middle Click + Drag)" Click="Tool_PanHint">
+                            <!-- Hand/4-Direction Move Cross Path -->
+                            <Path Data="M 7 1 L 9 3 M 7 1 L 5 3 M 7 1 L 7 13 M 7 13 L 5 11 M 7 13 L 9 11 M 1 7 L 3 5 M 1 7 L 3 9 M 1 7 L 13 7 M 13 7 L 11 5 M 13 7 L 11 9" 
+                                  Stroke="{StaticResource AccentBrush}" 
+                                  StrokeThickness="1.4" 
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Width="13" Height="13" Stretch="Uniform" />
+                        </Button>
+
+                        <!-- Zoom In -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Zoom In" Click="Tool_ZoomIn">
+                            <Path Data="M 6 1 A 5 5 0 1 0 10.5 7.5 L 14 11 M 6 3.5 L 6 8.5 M 3.5 6 L 8.5 6" 
+                                  Stroke="{StaticResource AccentBrush}" 
+                                  StrokeThickness="1.4" 
+                                  StrokeStartLineCap="Round"
+                                  Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+
+                        <!-- Zoom Out -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Zoom Out" Click="Tool_ZoomOut">
+                            <Path Data="M 6 1 A 5 5 0 1 0 10.5 7.5 L 14 11 M 3.5 6 L 8.5 6" 
+                                  Stroke="{StaticResource AccentBrush}" 
+                                  StrokeThickness="1.4" 
+                                  StrokeStartLineCap="Round"
+                                  Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+
+                        <!-- Fit to View -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Fit to Window" Click="Tool_FitView">
+                            <Path Data="M 1 4 L 1 1 L 4 1 M 10 1 L 13 1 L 13 4 M 13 10 L 13 13 L 10 13 M 4 13 L 1 13 L 1 10" 
+                                  Stroke="{StaticResource AccentBrush}" 
+                                  StrokeThickness="1.5" 
+                                  Width="13" Height="13" Stretch="Uniform" />
+                        </Button>
+
+                        <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="2,1" Background="{StaticResource AccentBrush}" />
+
+                        <!-- Isometric View Icon (3D Cube) -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Isometric View" Click="ResetView_Isometric">
+                            <Path Data="M 7 1 L 13 4.5 L 13 11.5 L 7 15 L 1 11.5 L 1 4.5 Z M 1 4.5 L 7 8 L 13 4.5 M 7 8 L 7 15" 
+                                  Stroke="{StaticResource AccentBrush}" 
+                                  StrokeThickness="1.2" 
+                                  Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+
+                        <!-- Front View Icon (Side Elevation Line/Plane) -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Front / Elevation View" Click="ResetView_Front">
+                            <Grid Width="14" Height="14">
+                                <Rectangle Stroke="{StaticResource AccentBrush}" StrokeThickness="1.2" Fill="#E6EEFA" Margin="1,4,1,4" />
+                                <Line X1="0" Y1="13" X2="14" Y2="13" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.4" />
+                            </Grid>
+                        </Button>
+
+                        <!-- Top View Icon (Plan View / Compass) -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Top / Plan View" Click="ResetView_Top">
+                            <Grid Width="14" Height="14">
+                                <Rectangle Stroke="{StaticResource AccentBrush}" StrokeThickness="1.2" Fill="#E6EEFA" Margin="1" />
+                                <Ellipse Width="4" Height="4" Fill="{StaticResource AccentBrush}" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
                 </Border>
+
+                <!-- Status / Hint Overlay -->
+                <TextBlock x:Name="ViewportStatusText" 
+                           Text="Select a clash to view 3D route" 
+                           Foreground="{StaticResource AccentBrush}" 
+                           FontSize="10" 
+                           HorizontalAlignment="Left" 
+                           VerticalAlignment="Bottom" 
+                           Margin="6" />
             </Grid>
         </Border>
 

@@ -14,6 +14,14 @@ namespace TheResolver.ViewModel
         private bool _resolveFailed;
         private bool _isFeasible = true;
 
+        public string ResolutionLogMessage { get; set; } = string.Empty;
+       
+        public double? ResolvedRiseMm { get; set; }
+        public double? ResolvedAngleDeg { get; set; }
+       
+        public int? CreatedTrayCount { get; set; }
+        public int? CreatedFittingCount { get; set; }
+
         /// <summary>
         /// Raised whenever <see cref="IsSelected"/> changes so the owning
         /// view model can refresh the header "select all" checkbox.

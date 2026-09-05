@@ -66,9 +66,31 @@ namespace TheResolver.Commands
                     case ModelRequest.DiscardPreview:
                         break;
                     case ModelRequest.FinishSession:
+                        // 1. Reset ViewModel collections and preview data
+                        _viewModel.ResetSession();
+
+                        // 2. Tear down spatial index to free memory
+                        _spatialIndex = null;
+
+                        // 3. Clear Revit viewport selection
+                        try
+                        {
+                            app.ActiveUIDocument?.Selection.SetElementIds(new List<ElementId>());
+                        }
+                        catch { }
+
+                        // 4. Hide the dockable pane
+                        try
+                        {
+                            DockablePaneId paneId = new DockablePaneId(new Guid("D53C1A1E-8B7C-4C9C-A898-1C71279DF4A1")); // Match your registered GUID
+                            DockablePane pane = app.GetDockablePane(paneId);
+                            if (pane != null && pane.IsShown())
+                            {
+                                pane.Hide();
+                            }
+                        }
+                        catch { }
                         break;
-
-
                 }
             }
         }
@@ -414,6 +436,200 @@ namespace TheResolver.Commands
 
             var utils = new GeometricUtilities();
             return utils.TryBuildBypassRoutingPoints(clash, settings, out var points);
+        }
+
+        private void ExecuteBatchResolution(UIApplication app)
+        {
+            UIDocument uidoc = app.ActiveUIDocument;
+            Document doc = uidoc.Document;
+
+            var targetClashes = _viewModel.Clashes.Where(c => c.IsSelected && !c.IsResolved).ToList();
+            if (targetClashes.Count == 0)
+            {
+                return;
+            }
+
+            // Build RouteSettingDTOs directly from the ViewModel properties
+            var routeSettings = new RouteSettingDTOs
+            {
+                BendRadius = _viewModel.BendRadiusMm / 304.8,
+                BendAngle = _viewModel.BendAngleDegrees,
+                MinimumClearance = _viewModel.TopClearanceMm / 304.8,
+                MinimumSideOffset = _viewModel.OffsetSpanMm / 304.8,
+                PreferredDirection = _viewModel.PreferredDirection
+            };
+
+            var utils = new GeometricUtilities { SpatialIndex = _spatialIndex };
+            int successCount = 0;
+            int failureCount = 0;
+
+            foreach (var clashItem in targetClashes)
+            {
+                var clash = clashItem.ClashInfo;
+                if (clash?.Tray == null || clash.ClashElement == null)
+                    continue;
+
+                // Use clashItem.ClashInfo to read IDs safely regardless of wrapper property names
+                string trayId = clash.Tray.Id.ToString();
+                string clashElemId = clash.ClashElement.Id.ToString();
+                string clashCat = clash.ClashElement.Category?.Name ?? "Element";
+                string docTitle = clash.ClashElement.Document?.Title ?? "Linked";
+
+                string clashHeader = $"[{clashItem.ClashId} | Tray: {trayId} vs {clashCat}: {clashElemId} ({docTitle})]";
+
+                // 1. Solve geometry
+                List<XYZ> routingPoints;
+                bool routeOk = utils.TryBuildBypassRoutingPoints(clash, routeSettings, out routingPoints);
+
+                if (!routeOk || routingPoints == null || routingPoints.Count < 4)
+                {
+                    failureCount++;
+                    clashItem.IsFeasible = false;
+                    clashItem.ResolutionLogMessage = "Geometric solver failed: Insufficient clearance in pocket or span outside tray bounds.";
+                    continue;
+                }
+
+                // 2. Commit transaction using your tool's existing route creation logic
+                using (Transaction trans = new Transaction(doc, $"Resolve Clash {trayId}"))
+                {
+                    trans.Start();
+                    try
+                    {
+                        // Call your existing bypass creation routine in this tool
+                        // (e.g. this.CreateBypassTrays or your specific helper)
+                        bool created = CreateBypassElements(doc, clash.Tray, routingPoints, routeSettings);
+
+                        if (created)
+                        {
+                            trans.Commit();
+                            successCount++;
+                            clashItem.IsResolved = true; // Automatically sets Status to "Resolved"
+                            clashItem.ResolvedRiseMm = Math.Abs(routingPoints[1].Z - routingPoints[0].Z) * 304.8;
+                            clashItem.ResolvedAngleDeg = routeSettings.BendAngle;
+                            clashItem.ResolutionLogMessage = $"Resolved successfully at +{clashItem.ResolvedRiseMm:F1}mm displacement.";
+                        }
+                        else
+                        {
+                            trans.RollBack();
+                            failureCount++;
+                            clashItem.ResolutionLogMessage = "Revit API rejected fitting or tray creation.";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        trans.RollBack();
+                        failureCount++;
+                        clashItem.ResolutionLogMessage = $"Exception: {ex.Message}";
+                    }
+                }
+            }
+
+            // Refresh UI status properties
+            _viewModel.NotifyStatusChanged();
+        }
+
+        private bool CreateBypassElements(Document doc, CableTray originalTray, List<XYZ> points, RouteSettingDTOs settings)
+        {
+            if (points == null || points.Count < 4) return false;
+
+            using (Transaction t = new Transaction(doc, "Create Cable Tray Bypass"))
+            {
+                t.Start();
+                try
+                {
+                    ElementId typeId = originalTray.GetTypeId();
+                    ElementId levelId = originalTray.LevelId;
+
+                    // 1. Correct parameter extraction (CableTray does not have direct .Width / .Height properties)
+                    double width = originalTray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)?.AsDouble() ?? (300.0 / 304.8);
+                    double height = originalTray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)?.AsDouble() ?? (100.0 / 304.8);
+
+                    if (!(originalTray.Location is LocationCurve lc) || !(lc.Curve is Line originalLine))
+                    {
+                        t.RollBack();
+                        return false;
+                    }
+
+                    XYZ origStart = originalLine.GetEndPoint(0);
+                    XYZ origEnd = originalLine.GetEndPoint(1);
+
+                    // 2. Create the 5 individual tray segments
+                    CableTray trayStart = CableTray.Create(doc, typeId, origStart, points[0], levelId);
+                    CableTray trayRampUp = CableTray.Create(doc, typeId, points[0], points[1], levelId);
+                    CableTray trayPlateau = CableTray.Create(doc, typeId, points[1], points[2], levelId);
+                    CableTray trayRampDown = CableTray.Create(doc, typeId, points[2], points[3], levelId);
+                    CableTray trayEnd = CableTray.Create(doc, typeId, points[3], origEnd, levelId);
+
+                    var newTrays = new List<CableTray> { trayStart, trayRampUp, trayPlateau, trayRampDown, trayEnd };
+                    foreach (var tr in newTrays)
+                    {
+                        tr.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)?.Set(width);
+                        tr.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)?.Set(height);
+                    }
+
+                    // 3. MANDATORY: Regenerate document so Revit creates connector geometries
+                    doc.Regenerate();
+
+                    // 4. Connect adjacent segments via Elbow Fittings
+                    ConnectTraysWithFitting(doc, trayStart, trayRampUp);
+                    ConnectTraysWithFitting(doc, trayRampUp, trayPlateau);
+                    ConnectTraysWithFitting(doc, trayPlateau, trayRampDown);
+                    ConnectTraysWithFitting(doc, trayRampDown, trayEnd);
+
+                    // 5. Remove original clashing cable tray
+                    doc.Delete(originalTray.Id);
+
+                    t.Commit();
+                    return true;
+                }
+                catch
+                {
+                    t.RollBack();
+                    return false;
+                }
+            }
+        }
+
+        private static void ConnectTraysWithFitting(Document doc, CableTray t1, CableTray t2)
+        {
+            Connector c1Closest = null;
+            Connector c2Closest = null;
+            double minDist = double.MaxValue;
+
+            foreach (Connector conn1 in t1.ConnectorManager.Connectors)
+            {
+                foreach (Connector conn2 in t2.ConnectorManager.Connectors)
+                {
+                    double dist = conn1.Origin.DistanceTo(conn2.Origin);
+                    if (dist < minDist)
+                    {
+                        minDist = dist;
+                        c1Closest = conn1;
+                        c2Closest = conn2;
+                    }
+                }
+            }
+
+            if (c1Closest != null && c2Closest != null && minDist < 3.0) // ~900mm tolerance
+            {
+                try
+                {
+                    doc.Create.NewElbowFitting(c1Closest, c2Closest);
+                }
+                catch
+                {
+                    // Fallback: If elbow fitting geometry cannot be generated due to tight radius,
+                    // physically snap the connectors together
+                    try
+                    {
+                        if (!c1Closest.IsConnectedTo(c2Closest))
+                        {
+                            c1Closest.ConnectTo(c2Closest);
+                        }
+                    }
+                    catch { }
+                }
+            }
         }
     }
 }

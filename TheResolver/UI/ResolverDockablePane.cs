@@ -5,28 +5,32 @@ namespace TheResolver.UI
 {
     public class ResolverDockablePane : IDockablePaneProvider
     {
-        private readonly ResolverView _view;
+        public static ResolverDockablePane Instance { get; private set; }
+
+        public ResolverView View { get; private set; }
+
+        public ClashViewModel ViewModel => View?.ClashVm ?? View?.ViewModel;
 
         public ResolverDockablePane()
         {
-            _view = new ResolverView();
+            Instance = this;
+            // Initialize View immediately in the constructor
+            View = new ResolverView();
         }
-
-        /// <summary>
-        /// View model behind the pane, so a command can refresh the model list
-        /// once a document is open.
-        /// </summary>
-        public ClashViewModel ViewModel => _view.ViewModel;
 
         public void SetupDockablePane(DockablePaneProviderData data)
         {
-            data.FrameworkElement = _view;
+            // Ensure View is initialized if constructor wasn't called via standard path
+            if (View == null)
+            {
+                View = new ResolverView();
+            }
 
-            data.InitialState =
-                new DockablePaneState
-                {
-                    DockPosition = DockPosition.Right
-                };
+            data.FrameworkElement = View;
+            data.InitialState = new DockablePaneState
+            {
+                DockPosition = DockPosition.Right
+            };
         }
     }
 }

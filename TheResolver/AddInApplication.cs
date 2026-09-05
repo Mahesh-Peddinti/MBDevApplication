@@ -1,4 +1,5 @@
 using Autodesk.Revit.UI;
+using System;
 using TheResolver.Button;
 using TheResolver.UI;
 
@@ -23,6 +24,9 @@ namespace TheResolver
 
             RegisterDockablePanel(application);
 
+            application.ControlledApplication.DocumentClosing += OnDocumentClosing;
+            return Result.Succeeded;
+
             return Result.Succeeded;
         }
 
@@ -42,6 +46,16 @@ namespace TheResolver
                 ResolverPaneId,
                 "The Resolver",
                 PaneProvider);
+        }
+
+        private void OnDocumentClosing(object sender, Autodesk.Revit.DB.Events.DocumentClosingEventArgs e)
+        {
+            // Retrieve the view and wipe the session when a document is closed
+            DockablePaneId paneId = new DockablePaneId(new Guid("D53C1A1E-8B7C-4C9C-A898-1C71279DF4A1"));
+            if (DockablePane.PaneExists(paneId))
+            {
+                ResolverDockablePane.Instance?.View?.ClashVm?.ResetSession();
+            }
         }
     }
 }

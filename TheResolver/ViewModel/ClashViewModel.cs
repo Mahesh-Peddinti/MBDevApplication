@@ -1,3 +1,5 @@
+using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -6,12 +8,10 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using Autodesk.Revit.DB;
-using Autodesk.Revit.UI;
+using TheResolver.Commands;
 using TheResolver.DTOs;
 using TheResolver.Services;
 using TheResolver.Utilities;
-using TheResolver.Commands;
 
 namespace TheResolver.ViewModel
 {
@@ -131,35 +131,49 @@ namespace TheResolver.ViewModel
         /// </summary>
         public void Initialize(Document doc)
         {
-            if (doc == null)
-                return;
-
-            var previouslyUnselected =
-                new HashSet<string>(
-                    GetAvailableModels()
-                        .Where(m => !m.IsSelected)
-                        .Select(m => m.Name ?? string.Empty));
-
-            foreach (var stale in GetAvailableModels())
-                stale.SelectionChangedAction = null;
+            if (doc == null) return;
 
             HostModels.Clear();
             LinkModels.Clear();
 
-            foreach (var model in _modelSelectionService.GetAvailableModels(doc))
+            // 1. Fetch all candidate models from the service (returns IList<ClashModelItem>)
+            var allModels = ModelSelectionService.GetAvailableModels(doc);
+            if (allModels == null || allModels.Count == 0)
             {
-                model.IsSelected =
-                    !previouslyUnselected.Contains(model.Name ?? string.Empty);
-
-                model.SelectionChangedAction = OnModelSelectionChanged;
-
-                if (model.IsHost)
-                    HostModels.Add(model);
-                else
-                    LinkModels.Add(model);
+                RefreshSelectionSummaries();
+                return;
             }
 
-            OnPropertyChanged(nameof(ModelSelectionSummary));
+            // 2. Separate into Host and Link models, attach PropertyChanged listeners
+            foreach (var modelItem in allModels)
+            {
+                // Wire change notification for selection count and category synchronization
+                modelItem.PropertyChanged += OnModelItemPropertyChanged;
+
+                if (modelItem.IsHost)
+                {
+                    modelItem.IsSelected = true;
+                    HostModels.Add(modelItem);
+                }
+                else
+                {
+                    modelItem.IsSelected = true;
+                    LinkModels.Add(modelItem);
+                }
+            }
+
+            // 3. Initial sync and summary string updates
+            SyncCategories();
+            RefreshSelectionSummaries();
+        }
+
+        private void OnModelItemPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ClashModelItem.IsSelected))
+            {
+                SyncCategories();
+                RefreshSelectionSummaries();
+            }
         }
 
         private IEnumerable<ClashModelItem> GetAvailableModels()
@@ -170,31 +184,50 @@ namespace TheResolver.ViewModel
             foreach (var m in LinkModels)
                 yield return m;
         }
-     
+
 
         public void PopulateCategoryCombos(HashSet<BuiltInCategory> hostCats, HashSet<BuiltInCategory> linkCats)
         {
             HostCategories.Clear();
             foreach (var cat in hostCats)
             {
-                HostCategories.Add(new CategoryItem
+                var item = new CategoryItem
                 {
                     Name = LabelUtils.GetLabelFor(cat),
                     Category = cat,
                     IsSelected = true
-                });
+                };
+                // Listen to check/uncheck
+                item.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(CategoryItem.IsSelected))
+                        RefreshSelectionSummaries();
+                };
+                HostCategories.Add(item);
             }
 
             LinkCategories.Clear();
             foreach (var cat in linkCats)
             {
-                LinkCategories.Add(new CategoryItem
+                var item = new CategoryItem
                 {
                     Name = LabelUtils.GetLabelFor(cat),
                     Category = cat,
                     IsSelected = true
-                });
+                };
+                item.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(CategoryItem.IsSelected))
+                        RefreshSelectionSummaries();
+                };
+                LinkCategories.Add(item);
             }
+
+
+
+            RefreshSelectionSummaries();
+
+
         }
 
         /// <summary>
@@ -800,5 +833,144 @@ namespace TheResolver.ViewModel
 
             return true;
         }
+
+        public void ResetSession()
+        {
+            // 1. Clear the clash list (TotalClashes, ResolvedClashes, FeasibleClashes derive from this)
+            Clashes.Clear();
+            SelectedClash = null;
+            _selectedClash = null;
+
+            // 2. Notify the UI that the calculated counts have reset to 0
+            OnPropertyChanged(nameof(TotalClashes));
+            OnPropertyChanged(nameof(ResolvedClashes));
+            OnPropertyChanged(nameof(FeasibleClashes));
+
+            // 3. Clear models and categories
+            HostModels.Clear();
+            LinkModels.Clear();
+            HostCategories.Clear();
+            LinkCategories.Clear();
+
+            // 4. Reset preview route data and visual elements
+            PreviewRouteData = new PreviewRouteData();
+            OnPropertyChanged(nameof(PreviewRouteData));
+
+            // 5. Reset selection states & messages
+            _isAllSelected = false;
+            OnPropertyChanged(nameof(IsAllSelected));
+
+            StatusText = "Session reset. Click Load to start.";
+            OnPropertyChanged(nameof(StatusText));
+        }
+
+        // --- Selection Summary Properties for ComboBox Headers ---
+
+        public string HostModelSummary
+        {
+            get
+            {
+                if (HostModels.Count == 0) return "No models loaded";
+                int sel = HostModels.Count(m => m.IsSelected);
+                return $"{sel} of {HostModels.Count} selected";
+            }
+        }
+
+        public string LinkModelSummary
+        {
+            get
+            {
+                if (LinkModels.Count == 0) return "No links loaded";
+                int sel = LinkModels.Count(m => m.IsSelected);
+                return $"{sel} of {LinkModels.Count} selected";
+            }
+        }
+
+        public string HostCategorySummary
+        {
+            get
+            {
+                if (HostCategories.Count == 0) return "No categories";
+                int sel = HostCategories.Count(c => c.IsSelected);
+                return $"{sel} of {HostCategories.Count} selected";
+            }
+        }
+
+        public ICommand ExportLogCommand { get; }
+
+        public void NotifyStatusChanged()
+        {
+            OnPropertyChanged(nameof(TotalClashes));
+            OnPropertyChanged(nameof(ResolvedClashes));
+            OnPropertyChanged(nameof(FeasibleClashes));
+            UpdateStatusForSelection();
+        }
+
+        private void ExecuteExportLog()
+        {
+            var sfd = new Microsoft.Win32.SaveFileDialog
+            {
+                FileName = $"TheResolver_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
+                Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*"
+            };
+
+            if (sfd.ShowDialog() == true)
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("================================================================================");
+                sb.AppendLine(" THE RESOLVER - CLASH RESOLUTION REPORT");
+                sb.AppendLine($" Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine($" Total: {TotalClashes} | Resolved: {ResolvedClashes} | Unresolved: {TotalClashes - ResolvedClashes}");
+                sb.AppendLine("================================================================================");
+                sb.AppendLine();
+
+                sb.AppendLine("--- RESOLVED CLASHES ---");
+                foreach (var c in Clashes.Where(x => x.IsResolved))
+                {
+                    string tId = c.ClashInfo?.Tray?.Id.ToString() ?? "N/A";
+                    string eId = c.ClashInfo?.ClashElement?.Id.ToString() ?? "N/A";
+                    string cat = c.ClashInfo?.ClashElement?.Category?.Name ?? "Element";
+                    string model = c.ClashInfo?.ClashElement?.Document?.Title ?? "Model";
+
+                    sb.AppendLine($"[{c.ClashId}] Tray {tId} vs {cat} {eId} ({model})");
+                    sb.AppendLine($"    -> {c.ResolutionLogMessage}");
+                }
+                sb.AppendLine();
+
+                sb.AppendLine("--- UNRESOLVED CLASHES ---");
+                foreach (var c in Clashes.Where(x => !x.IsResolved))
+                {
+                    string tId = c.ClashInfo?.Tray?.Id.ToString() ?? "N/A";
+                    string eId = c.ClashInfo?.ClashElement?.Id.ToString() ?? "N/A";
+                    string cat = c.ClashInfo?.ClashElement?.Category?.Name ?? "Element";
+                    string model = c.ClashInfo?.ClashElement?.Document?.Title ?? "Model";
+
+                    sb.AppendLine($"[{c.ClashId}] Tray {tId} vs {cat} {eId} ({model})");
+                    sb.AppendLine($"    -> Reason: {c.ResolutionLogMessage}");
+                }
+
+                System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
+            }
+        }
+
+        public string LinkCategorySummary
+        {
+            get
+            {
+                if (LinkCategories.Count == 0) return "No categories";
+                int sel = LinkCategories.Count(c => c.IsSelected);
+                return $"{sel} of {LinkCategories.Count} selected";
+            }
+        }
+
+        public void RefreshSelectionSummaries()
+        {
+            OnPropertyChanged(nameof(HostModelSummary));
+            OnPropertyChanged(nameof(LinkModelSummary));
+            OnPropertyChanged(nameof(HostCategorySummary));
+            OnPropertyChanged(nameof(LinkCategorySummary));
+        }
+
+
     }
 }
