@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -51,13 +52,14 @@ namespace TheResolver.UI
                 ClashVm.IsAllSelected = (chk.IsChecked == true);
             }
         }
-       
+
 
         // --- 3D Scene Rendering ---
         private void Render3DScene()
         {
             if (SceneVisual == null) return;
-            var group = new Model3DGroup();           
+            var group = new Model3DGroup();
+
             var data = ClashVm?.PreviewRouteData;
             if (data?.RoutePoints == null || data.RoutePoints.Count < 2)
             {
@@ -68,13 +70,13 @@ namespace TheResolver.UI
             ViewportStatusText.Text = string.Empty;
 
             double origTrayLength = data.TrayLengthMm;
-            double trayW = 300; // mm
-            double trayH = 100; // mm
+            double trayW = 300;
+            double trayH = 100;
 
-            // 1. Render Baseline Tray (Reference)
+            // 1. Render Baseline Tray (Ghost reference)
             group.Children.Add(CreateBoxModel(new Point3D(0, -trayW * 0.5, -trayH * 0.5), new Size3D(origTrayLength, trayW, trayH), TrayMaterial));
 
-            // 2. Render Clash Obstacle
+            // 2. Render Direct Clash Obstacle
             if (data.ClashStationMaxMm > data.ClashStationMinMm)
             {
                 double cLen = Math.Max(20, data.ClashStationMaxMm - data.ClashStationMinMm);
@@ -96,15 +98,14 @@ namespace TheResolver.UI
                     SecondaryMaterial));
             }
 
-            // 4. Render N-Point Detour Segments (Connected 3D Trays)
+            // 4. Render All N Segments of the Multi-Pocket Route
             for (int i = 0; i < data.RoutePoints.Count - 1; i++)
             {
                 var p0 = data.RoutePoints[i];
                 var p1 = data.RoutePoints[i + 1];
 
-                Vector3D dir = new Vector3D(p1.Station - p0.Station, 0, p1.Elevation - p0.Elevation);
-                double segLength = dir.Length;
-                if (segLength < 1) continue;
+                double segLen = Math.Sqrt(Math.Pow(p1.Station - p0.Station, 2) + Math.Pow(p1.Elevation - p0.Elevation, 2));
+                if (segLen < 1.0) continue;
 
                 var segModel = CreateExtrudedSegment(
                     new Point3D(p0.Station, 0, p0.Elevation),
@@ -116,9 +117,9 @@ namespace TheResolver.UI
 
             SceneVisual.Content = group;
 
-            // Center camera target on the clash station
-            double clashCenter = (data.ClashStationMinMm + data.ClashStationMaxMm) * 0.5;
-            _cameraTarget = new Point3D(clashCenter, 0, data.RiseMm * 0.5);
+            // Focus camera target at route midpoint
+            double midStation = (data.RoutePoints.First().Station + data.RoutePoints.Last().Station) * 0.5;
+            _cameraTarget = new Point3D(midStation, 0, data.RiseMm * 0.5);
         }
         // --- Trigger the  3D Render on Selection ---
         private void OnViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)

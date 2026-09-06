@@ -530,9 +530,9 @@ namespace TheResolver.Commands
 
         private bool CreateBypassElements(Document doc, CableTray originalTray, List<XYZ> points, RouteSettingDTOs settings)
         {
-            if (points == null || points.Count < 4) return false;
+            if (points == null || points.Count < 2) return false;
 
-            using (Transaction t = new Transaction(doc, "Create Cable Tray Bypass"))
+            using (Transaction t = new Transaction(doc, "Resolve Clash Bypass"))
             {
                 t.Start();
                 try
@@ -540,43 +540,59 @@ namespace TheResolver.Commands
                     ElementId typeId = originalTray.GetTypeId();
                     ElementId levelId = originalTray.LevelId;
 
-                    // 1. Correct parameter extraction (CableTray does not have direct .Width / .Height properties)
                     double width = originalTray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)?.AsDouble() ?? (300.0 / 304.8);
                     double height = originalTray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)?.AsDouble() ?? (100.0 / 304.8);
 
-                    if (!(originalTray.Location is LocationCurve lc) || !(lc.Curve is Line originalLine))
+                    if (!(originalTray.Location is LocationCurve lc) || !(lc.Curve is Line origLine))
                     {
                         t.RollBack();
                         return false;
                     }
 
-                    XYZ origStart = originalLine.GetEndPoint(0);
-                    XYZ origEnd = originalLine.GetEndPoint(1);
+                    XYZ pStart = origLine.GetEndPoint(0);
+                    XYZ pEnd = origLine.GetEndPoint(1);
 
-                    // 2. Create the 5 individual tray segments
-                    CableTray trayStart = CableTray.Create(doc, typeId, origStart, points[0], levelId);
-                    CableTray trayRampUp = CableTray.Create(doc, typeId, points[0], points[1], levelId);
-                    CableTray trayPlateau = CableTray.Create(doc, typeId, points[1], points[2], levelId);
-                    CableTray trayRampDown = CableTray.Create(doc, typeId, points[2], points[3], levelId);
-                    CableTray trayEnd = CableTray.Create(doc, typeId, points[3], origEnd, levelId);
+                    // Construct strict ordered coordinate sequence
+                    var allPts = new List<XYZ> { pStart };
+                    allPts.AddRange(points);
+                    allPts.Add(pEnd);
 
-                    var newTrays = new List<CableTray> { trayStart, trayRampUp, trayPlateau, trayRampDown, trayEnd };
-                    foreach (var tr in newTrays)
+                    // Filter out duplicate or collinear micro-vertices
+                    var cleanPts = new List<XYZ> { allPts[0] };
+                    for (int i = 1; i < allPts.Count; i++)
                     {
-                        tr.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)?.Set(width);
-                        tr.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)?.Set(height);
+                        if (allPts[i].DistanceTo(cleanPts.Last()) > 40.0 / 304.8)
+                        {
+                            cleanPts.Add(allPts[i]);
+                        }
                     }
 
-                    // 3. MANDATORY: Regenerate document so Revit creates connector geometries
+                    if (cleanPts.Count < 3)
+                    {
+                        t.RollBack();
+                        return false;
+                    }
+
+                    // 1. Create Cable Tray Segments
+                    var trays = new List<CableTray>();
+                    for (int i = 0; i < cleanPts.Count - 1; i++)
+                    {
+                        CableTray seg = CableTray.Create(doc, typeId, cleanPts[i], cleanPts[i + 1], levelId);
+                        seg.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)?.Set(width);
+                        seg.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)?.Set(height);
+                        trays.Add(seg);
+                    }
+
+                    // 2. Commit elements to Revit internal BSP tree
                     doc.Regenerate();
 
-                    // 4. Connect adjacent segments via Elbow Fittings
-                    ConnectTraysWithFitting(doc, trayStart, trayRampUp);
-                    ConnectTraysWithFitting(doc, trayRampUp, trayPlateau);
-                    ConnectTraysWithFitting(doc, trayPlateau, trayRampDown);
-                    ConnectTraysWithFitting(doc, trayRampDown, trayEnd);
+                    // 3. Connect sequential segments with elbow fittings
+                    for (int i = 0; i < trays.Count - 1; i++)
+                    {
+                        ConnectTraysWithFitting(doc, trays[i], trays[i + 1]);
+                    }
 
-                    // 5. Remove original clashing cable tray
+                    // 4. Remove original tray
                     doc.Delete(originalTray.Id);
 
                     t.Commit();
@@ -592,40 +608,37 @@ namespace TheResolver.Commands
 
         private static void ConnectTraysWithFitting(Document doc, CableTray t1, CableTray t2)
         {
-            Connector c1Closest = null;
-            Connector c2Closest = null;
+            Connector c1 = null;
+            Connector c2 = null;
             double minDist = double.MaxValue;
 
-            foreach (Connector conn1 in t1.ConnectorManager.Connectors)
+            foreach (Connector con1 in t1.ConnectorManager.Connectors)
             {
-                foreach (Connector conn2 in t2.ConnectorManager.Connectors)
+                foreach (Connector con2 in t2.ConnectorManager.Connectors)
                 {
-                    double dist = conn1.Origin.DistanceTo(conn2.Origin);
+                    double dist = con1.Origin.DistanceTo(con2.Origin);
                     if (dist < minDist)
                     {
                         minDist = dist;
-                        c1Closest = conn1;
-                        c2Closest = conn2;
+                        c1 = con1;
+                        c2 = con2;
                     }
                 }
             }
 
-            if (c1Closest != null && c2Closest != null && minDist < 3.0) // ~900mm tolerance
+            if (c1 != null && c2 != null && minDist < 2.0)
             {
                 try
                 {
-                    doc.Create.NewElbowFitting(c1Closest, c2Closest);
+                    doc.Create.NewElbowFitting(c1, c2);
                 }
                 catch
                 {
-                    // Fallback: If elbow fitting geometry cannot be generated due to tight radius,
-                    // physically snap the connectors together
+                    // Direct physical snap if fitting geometry template is unconstrained
                     try
                     {
-                        if (!c1Closest.IsConnectedTo(c2Closest))
-                        {
-                            c1Closest.ConnectTo(c2Closest);
-                        }
+                        if (!c1.IsConnectedTo(c2))
+                            c1.ConnectTo(c2);
                     }
                     catch { }
                 }

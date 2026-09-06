@@ -266,6 +266,7 @@
 		<Compile Include="UI\ResolverDockablePane.cs" />
 		<Compile Include="UI\ResolverView.xaml.cs" />
 		<Compile Include="Utilities\LocalSpatialIndex.cs" />
+		<Compile Include="Utilities\RectInterval.cs" />
 		<Compile Include="ViewModel\ClashGridItemViewModel.cs" />
 		<Compile Include="ViewModel\ClashItemViewModel.cs" />
 		<Compile Include="ViewModel\ClashViewModel.cs" />
