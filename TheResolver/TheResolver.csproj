@@ -263,6 +263,8 @@
 
 		<Compile Include="ModelService.cs" />
 		<Compile Include="Services\IModelSelectionService.cs" />
+		<Compile Include="Services\KinematicAStarSolver.cs" />
+		<Compile Include="Services\VoxelGrid3D.cs" />
 		<Compile Include="UI\ResolverDockablePane.cs" />
 		<Compile Include="UI\ResolverView.xaml.cs" />
 		<Compile Include="Utilities\LocalSpatialIndex.cs" />

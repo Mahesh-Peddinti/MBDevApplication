@@ -444,87 +444,46 @@ namespace TheResolver.Commands
             Document doc = uidoc.Document;
 
             var targetClashes = _viewModel.Clashes.Where(c => c.IsSelected && !c.IsResolved).ToList();
-            if (targetClashes.Count == 0)
-            {
-                return;
-            }
+            if (targetClashes.Count == 0) return;
 
-            // Build RouteSettingDTOs directly from the ViewModel properties
-            var routeSettings = new RouteSettingDTOs
-            {
-                BendRadius = _viewModel.BendRadiusMm / 304.8,
-                BendAngle = _viewModel.BendAngleDegrees,
-                MinimumClearance = _viewModel.TopClearanceMm / 304.8,
-                MinimumSideOffset = _viewModel.OffsetSpanMm / 304.8,
-                PreferredDirection = _viewModel.PreferredDirection
-            };
-
-            var utils = new GeometricUtilities { SpatialIndex = _spatialIndex };
-            int successCount = 0;
-            int failureCount = 0;
+            var routeSettings = GetCurrentRouteSettings();
 
             foreach (var clashItem in targetClashes)
             {
                 var clash = clashItem.ClashInfo;
-                if (clash?.Tray == null || clash.ClashElement == null)
-                    continue;
+                if (clash?.Tray == null || clash.ClashElement == null) continue;
 
-                // Use clashItem.ClashInfo to read IDs safely regardless of wrapper property names
-                string trayId = clash.Tray.Id.ToString();
-                string clashElemId = clash.ClashElement.Id.ToString();
-                string clashCat = clash.ClashElement.Category?.Name ?? "Element";
-                string docTitle = clash.ClashElement.Document?.Title ?? "Linked";
-
-                string clashHeader = $"[{clashItem.ClashId} | Tray: {trayId} vs {clashCat}: {clashElemId} ({docTitle})]";
-
-                // 1. Solve geometry
+                // 1. Compute 3D path using Kinematic A*
                 List<XYZ> routingPoints;
-                bool routeOk = utils.TryBuildBypassRoutingPoints(clash, routeSettings, out routingPoints);
+                bool solved = TryResolveWithKinematicAStar(doc, clash.Tray, clash.ClashElement, routeSettings, out routingPoints);
 
-                if (!routeOk || routingPoints == null || routingPoints.Count < 4)
+                if (!solved || routingPoints.Count < 2)
                 {
-                    failureCount++;
                     clashItem.IsFeasible = false;
-                    clashItem.ResolutionLogMessage = "Geometric solver failed: Insufficient clearance in pocket or span outside tray bounds.";
+                    clashItem.ResolutionLogMessage = "Kinematic A* failed: No free corridor found satisfying fitting constraints.";
                     continue;
                 }
 
-                // 2. Commit transaction using your tool's existing route creation logic
-                using (Transaction trans = new Transaction(doc, $"Resolve Clash {trayId}"))
+                // 2. Commit native Revit elements & fittings
+                try
                 {
-                    trans.Start();
-                    try
+                    bool created = CreateBypassElements(doc, clash.Tray, routingPoints, routeSettings);
+                    if (created)
                     {
-                        // Call your existing bypass creation routine in this tool
-                        // (e.g. this.CreateBypassTrays or your specific helper)
-                        bool created = CreateBypassElements(doc, clash.Tray, routingPoints, routeSettings);
-
-                        if (created)
-                        {
-                            trans.Commit();
-                            successCount++;
-                            clashItem.IsResolved = true; // Automatically sets Status to "Resolved"
-                            clashItem.ResolvedRiseMm = Math.Abs(routingPoints[1].Z - routingPoints[0].Z) * 304.8;
-                            clashItem.ResolvedAngleDeg = routeSettings.BendAngle;
-                            clashItem.ResolutionLogMessage = $"Resolved successfully at +{clashItem.ResolvedRiseMm:F1}mm displacement.";
-                        }
-                        else
-                        {
-                            trans.RollBack();
-                            failureCount++;
-                            clashItem.ResolutionLogMessage = "Revit API rejected fitting or tray creation.";
-                        }
+                        clashItem.IsResolved = true;
+                        clashItem.ResolutionLogMessage = $"Resolved via 3D A* with {routingPoints.Count} inflection points.";
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        trans.RollBack();
-                        failureCount++;
-                        clashItem.ResolutionLogMessage = $"Exception: {ex.Message}";
+                        clashItem.ResolutionLogMessage = "Revit API rejected fitting placement.";
                     }
+                }
+                catch (Exception ex)
+                {
+                    clashItem.ResolutionLogMessage = $"Creation error: {ex.Message}";
                 }
             }
 
-            // Refresh UI status properties
             _viewModel.NotifyStatusChanged();
         }
 
@@ -643,6 +602,87 @@ namespace TheResolver.Commands
                     catch { }
                 }
             }
+        }
+
+
+        private bool TryResolveWithKinematicAStar(
+                Document doc,
+                CableTray tray,
+                Element clashElement,
+                RouteSettingDTOs settings,
+                out List<XYZ> outPoints)
+        {
+            outPoints = new List<XYZ>();
+
+            if (!(tray.Location is LocationCurve lc) || !(lc.Curve is Line trayLine))
+                return false;
+
+            XYZ start = trayLine.GetEndPoint(0);
+            XYZ end = trayLine.GetEndPoint(1);
+            XYZ dir = (end - start).Normalize();
+            double length = start.DistanceTo(end);
+
+            double trayWidth = tray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)?.AsDouble() ?? (300.0 / 304.8);
+            double trayHeight = tray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)?.AsDouble() ?? (100.0 / 304.8);
+            double clearance = settings.MinimumClearance;
+
+            // 1. Build Region of Interest (ROI) around the full tray corridor
+            XYZ pMin = new XYZ(
+                Math.Min(start.X, end.X) - 2000.0 / 304.8,
+                Math.Min(start.Y, end.Y) - 2000.0 / 304.8,
+                Math.Min(start.Z, end.Z) - 1500.0 / 304.8);
+
+            XYZ pMax = new XYZ(
+                Math.Max(start.X, end.X) + 2000.0 / 304.8,
+                Math.Max(start.Y, end.Y) + 2000.0 / 304.8,
+                Math.Max(start.Z, end.Z) + 1500.0 / 304.8);
+
+            BoundingBoxXYZ roi = new BoundingBoxXYZ { Min = pMin, Max = pMax };
+
+            // 2. Discretize at 75mm resolution (efficient trade-off for MEP)
+            double cellSize = 75.0 / 304.8;
+            var grid = new VoxelGrid3D(roi, cellSize);
+
+            // 3. Rasterize Obstacles into Grid with inflation
+            double inflation = Math.Max(trayWidth, trayHeight) * 0.5 + clearance;
+
+            if (_spatialIndex != null)
+            {
+                var obstacles = _spatialIndex.QueryRoi(roi);
+                foreach (var obs in obstacles)
+                {
+                    if (obs.Id == tray.UniqueId) continue;
+                    grid.RasterizeObstacle(obs.Box, inflation);
+                }
+            }
+            else
+            {
+                BoundingBoxXYZ cBb = clashElement.get_BoundingBox(null);
+                if (cBb != null) grid.RasterizeObstacle(cBb, inflation);
+            }
+
+            // 4. Run Kinematic A* Search
+            double minFittingTangent = settings.BendRadius * Math.Tan(30.0 * Math.PI / 360.0) + (50.0 / 304.8);
+            var solvedPath = KinematicAStarSolver.SolvePath(grid, start, dir, end, minFittingTangent);
+
+            if (solvedPath == null || solvedPath.Count < 2)
+                return false;
+
+            outPoints = solvedPath;
+            return true;
+
+        }
+
+        private RouteSettingDTOs GetCurrentRouteSettings()
+        {
+            return new RouteSettingDTOs
+            {
+                BendRadius = _viewModel.BendRadiusMm / 304.8,
+                BendAngle = _viewModel.BendAngleDegrees,
+                MinimumClearance = _viewModel.TopClearanceMm / 304.8,
+                MinimumSideOffset = _viewModel.OffsetSpanMm / 304.8,
+                PreferredDirection = _viewModel.PreferredDirection
+            };
         }
     }
 }
