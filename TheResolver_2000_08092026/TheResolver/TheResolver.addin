@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+	<AddIn Type="Application">
+		<Name>TheResolver</Name>
+		<Assembly>C:\Users\mpeddinti\source\repos\TheResolver\bin\Debug\net8.0-windows\TheResolver.dll</Assembly>
+		<AddInId>CA4B03F3-3923-4791-8C0B-7B75221FFD43</AddInId>
+		<FullClassName>TheResolver.AddInApplication</FullClassName>
+		<VendorId>DAR</VendorId>
+		<VendorDescription>DAR, www.DAR.com</VendorDescription>
+	</AddIn>	
+</RevitAddIns>

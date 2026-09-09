@@ -1,0 +1,489 @@
+<UserControl x:Class="TheResolver.UI.ResolverView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="White"
+             MinWidth="380">
+    <UserControl.Resources>
+        <SolidColorBrush x:Key="PanelBrush" Color="White" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#6495ED" />
+        <SolidColorBrush x:Key="TextDark" Color="#333333" />
+
+        <Style x:Key="SectionBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource PanelBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,4" />
+        </Style>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style x:Key="NumberBox" TargetType="TextBox">
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Padding" Value="3,2" />
+            <Setter Property="HorizontalContentAlignment" Value="Right" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style x:Key="DirectionRadio" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="6">
+        <Grid.RowDefinitions>
+            <!-- 0: Title -->
+            <RowDefinition Height="Auto" />
+            <!-- 1: Side-by-Side Model Groups + Load -->
+            <RowDefinition Height="Auto" />
+            <!-- 2: Status Counts -->
+            <RowDefinition Height="Auto" />
+            <!-- 3: Detection Button -->
+            <RowDefinition Height="Auto" />
+            <!-- 4: Clashes Grid (absorbs spare height) -->
+            <RowDefinition Height="*" MinHeight="130" />
+            <!-- 5: Route Preview -->
+            <RowDefinition Height="Auto" />
+            <!-- 6: Route Settings -->
+            <RowDefinition Height="Auto" />
+            <!-- 7: Status + Finish -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <Border Grid.Row="0" Style="{StaticResource SectionBorder}">
+            <TextBlock Text="THE RESOLVER"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontSize="14"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center" />
+        </Border>
+
+        <!-- Side-by-Side Host & Link Model Groups + Load Button -->
+        <Border Grid.Row="1" Margin="0,4,0,0" Style="{StaticResource SectionBorder}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Host Model Box -->
+                    <GroupBox Grid.Column="0" Header="Host Model"
+          Foreground="{StaticResource AccentBrush}"
+          FontWeight="Bold" FontSize="11"
+          BorderBrush="{StaticResource AccentBrush}">
+                        <StackPanel Margin="4,2">
+                            <TextBlock Text="Model:" Style="{StaticResource FieldLabel}" Margin="0,2,0,1" />
+                            <ComboBox ItemsSource="{Binding HostModels}" 
+                  Height="24"
+                  IsEditable="True"
+                  IsReadOnly="True"
+                  Text="{Binding HostModelSummary, Mode=OneWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Name}"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              Foreground="{StaticResource TextDark}"
+                              FontSize="11" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <TextBlock Text="Categories:" Style="{StaticResource FieldLabel}" Margin="0,4,0,1" />
+                            <ComboBox ItemsSource="{Binding HostCategories}" 
+                  Height="24"
+                  IsEditable="True"
+                  IsReadOnly="True"
+                  Text="{Binding HostCategorySummary, Mode=OneWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Name}"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              Foreground="{StaticResource TextDark}"
+                              FontSize="11" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <!-- Link Model(s) Box -->
+                    <GroupBox Grid.Column="2" Header="Link Model(s)"
+          Foreground="{StaticResource AccentBrush}"
+          FontWeight="Bold" FontSize="11"
+          BorderBrush="{StaticResource AccentBrush}">
+                        <StackPanel Margin="4,2">
+                            <TextBlock Text="Model(s):" Style="{StaticResource FieldLabel}" Margin="0,2,0,1" />
+                            <ComboBox ItemsSource="{Binding LinkModels}" 
+                  Height="24"
+                  IsEditable="True"
+                  IsReadOnly="True"
+                  Text="{Binding LinkModelSummary, Mode=OneWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Name}"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              Foreground="{StaticResource TextDark}"
+                              FontSize="11" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <TextBlock Text="Categories:" Style="{StaticResource FieldLabel}" Margin="0,4,0,1" />
+                            <ComboBox ItemsSource="{Binding LinkCategories}" 
+                  Height="24"
+                  IsEditable="True"
+                  IsReadOnly="True"
+                  Text="{Binding LinkCategorySummary, Mode=OneWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Name}"
+                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                              Foreground="{StaticResource TextDark}"
+                              FontSize="11" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </GroupBox>
+                </Grid>
+
+                <!-- Load Button below both boxes -->
+                <Button Grid.Row="1"
+                        Content="Load"
+                        Command="{Binding LoadModelsCommand}"
+                        Height="24"
+                        Width="70"
+                        FontSize="11"
+                        FontWeight="Bold"
+                        Style="{StaticResource ActionButton}"
+                        HorizontalAlignment="Left"
+                        Margin="2,4,0,2" />
+            </Grid>
+        </Border>
+
+        <!-- Status Counts -->
+        <Border Grid.Row="2" Margin="0,4,0,0" Style="{StaticResource SectionBorder}">
+            <Grid Margin="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Total:" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" FontSize="11" />
+                <TextBlock Grid.Column="1" Text="{Binding TotalClashes}" FontWeight="Bold" Foreground="#333333" Margin="4,0,14,0" VerticalAlignment="Center" FontSize="11" />
+                <TextBlock Grid.Column="2" Text="Resolved:" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" FontSize="11" />
+                <TextBlock Grid.Column="3" Text="{Binding ResolvedClashes}" FontWeight="Bold" Foreground="#2E7D32" Margin="4,0,14,0" VerticalAlignment="Center" FontSize="11" />
+                <TextBlock Grid.Column="4" Text="Feasible:" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" FontSize="11" />
+                <TextBlock Grid.Column="5" Text="{Binding FeasibleClashes}" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="4,0,0,0" VerticalAlignment="Center" FontSize="11" />
+            </Grid>
+        </Border>
+
+        <!-- Detection Action Button -->
+        <Button Grid.Row="3"
+                Content="Run Clash Detection"
+                Margin="0,4,0,0"
+                Height="28"
+                FontSize="12"
+                FontWeight="Bold"
+                Style="{StaticResource ActionButton}"
+                Command="{Binding RunClashDetectionCommand}" />
+
+        <!-- Clashes DataGrid -->
+        <DataGrid Grid.Row="4"
+                  Margin="0,4,0,0"
+                  ItemsSource="{Binding Clashes}"
+                  SelectedItem="{Binding SelectedClash}"
+                  AutoGenerateColumns="False"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="{StaticResource AccentBrush}"
+                  SelectionMode="Single"
+                  SelectionUnit="FullRow"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  Background="White"
+                  RowBackground="White"
+                  AlternatingRowBackground="#F9F9F9"
+                  BorderBrush="{StaticResource AccentBrush}"
+                  BorderThickness="1"
+                  FontSize="11">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFeasible}" Value="False">
+                            <Setter Property="Foreground" Value="Gray" />
+                            <Setter Property="Opacity" Value="0.6" />
+                        </DataTrigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Padding" Value="4,2" />
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                    <Setter Property="BorderThickness" Value="0,0,1,1" />
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+            <DataGrid.Columns>
+                <!-- Select All Checkbox in Header -->
+                <DataGridTemplateColumn Width="32" CanUserSort="False">
+                    <DataGridTemplateColumn.Header>
+                        <CheckBox HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  IsChecked="{Binding DataContext.IsAllSelected, RelativeSource={RelativeSource AncestorType=DataGrid}, Mode=OneWay}"
+                                  Click="HeaderSelectAll_Click" />
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTextColumn Header="Clash" Binding="{Binding ClashId}" Width="1.1*" IsReadOnly="True" />
+                <DataGridTextColumn Header="Tray" Binding="{Binding Element1}" Width="1.3*" IsReadOnly="True" />
+                <DataGridTextColumn Header="Tray Id" Binding="{Binding Element1Id}" Width="1*" IsReadOnly="True" />
+                <DataGridTextColumn Header="Clashing With" Binding="{Binding Element2}" Width="1.3*" IsReadOnly="True" />
+                <DataGridTextColumn Header="Element Id" Binding="{Binding Element2Id}" Width="1*" IsReadOnly="True" />
+                <DataGridTextColumn Header="Model" Binding="{Binding Element2ProjectName}" Width="1.5*" IsReadOnly="True" />
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1.1*" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="FontWeight" Value="Bold" />
+                            <Setter Property="Foreground" Value="{Binding StatusColor}" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Route Preview -->
+        <!-- Interactive 3D Viewport -->
+        <!-- Interactive 3D Viewport with Vector Icon Toolbar -->
+        <!-- Route Preview: Enhanced 3D Canvas -->
+        <Border Grid.Row="5" Margin="0,4,0,0" Style="{StaticResource SectionBorder}" Background="#121316">
+            <Grid Height="460">
+                <!-- High-Contrast 3D Viewport -->
+                <Viewport3D x:Name="View3D"
+                            ClipToBounds="True"
+                            MouseDown="Viewport_MouseDown"
+                            MouseMove="Viewport_MouseMove"
+                            MouseUp="Viewport_MouseUp"
+                            MouseWheel="Viewport_MouseWheel">
+                    <Viewport3D.Camera>
+                        <PerspectiveCamera x:Name="ViewportCamera"
+                                           Position="2500,-3500,2200"
+                                           LookDirection="-2500,3500,-2200"
+                                           UpDirection="0,0,1"
+                                           FieldOfView="42" />
+                    </Viewport3D.Camera>
+
+                    <!-- Professional 3-Point Lighting Rig -->
+                    <ModelVisual3D>
+                        <ModelVisual3D.Content>
+                            <Model3DGroup>
+                                <AmbientLight Color="#45484F" />
+                                <DirectionalLight Color="#FFFFFF" Direction="-1,1.2,-1.4" />
+                                <DirectionalLight Color="#60728A" Direction="1,-1,0.5" />
+                                <DirectionalLight Color="#303A45" Direction="0,0,-1" />
+                            </Model3DGroup>
+                        </ModelVisual3D.Content>
+                    </ModelVisual3D>
+
+                    <ModelVisual3D x:Name="SceneVisual" />
+                </Viewport3D>
+
+                <!-- Floating Toolbar: Navigation & ViewCube Presets -->
+                <Border HorizontalAlignment="Right" 
+                        VerticalAlignment="Top" 
+                        Margin="8" 
+                        Background="#D01E2026" 
+                        BorderBrush="#3D4554" 
+                        BorderThickness="1" 
+                        CornerRadius="4" 
+                        Padding="3">
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.Resources>
+                            <Style x:Key="NavIconButton" TargetType="Button">
+                                <Setter Property="Width" Value="26" />
+                                <Setter Property="Height" Value="24" />
+                                <Setter Property="Margin" Value="1" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Padding" Value="3" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#2D3545" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Resources>
+
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Orbit (L-Drag)" Click="Tool_OrbitHint">
+                            <Path Data="M 12 3 A 8 8 0 1 0 19 8 L 19 5 M 19 8 L 16 8" 
+                                  Stroke="#00E5FF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" 
+                                  Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Pan (R/M-Drag)" Click="Tool_PanHint">
+                            <Path Data="M 7 1 L 9 3 M 7 1 L 5 3 M 7 1 L 7 13 M 7 13 L 5 11 M 7 13 L 9 11 M 1 7 L 3 5 M 1 7 L 3 9 M 1 7 L 13 7 M 13 7 L 11 5 M 13 7 L 11 9" 
+                                  Stroke="#00E5FF" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" 
+                                  Width="13" Height="13" Stretch="Uniform" />
+                        </Button>
+
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Zoom In" Click="Tool_ZoomIn">
+                            <Path Data="M 6 1 A 5 5 0 1 0 10.5 7.5 L 14 11 M 6 3.5 L 6 8.5 M 3.5 6 L 8.5 6" 
+                                  Stroke="#00E5FF" StrokeThickness="1.4" StrokeStartLineCap="Round" 
+                                  Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Zoom Out" Click="Tool_ZoomOut">
+                            <Path Data="M 6 1 A 5 5 0 1 0 10.5 7.5 L 14 11 M 3.5 6 L 8.5 6" 
+                                  Stroke="#00E5FF" StrokeThickness="1.4" StrokeStartLineCap="Round" 
+                                  Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Fit View" Click="Tool_FitView">
+                            <Path Data="M 1 4 L 1 1 L 4 1 M 10 1 L 13 1 L 13 4 M 13 10 L 13 13 L 10 13 M 4 13 L 1 13 L 1 10" 
+                                  Stroke="#00E5FF" StrokeThickness="1.5" 
+                                  Width="13" Height="13" Stretch="Uniform" />
+                        </Button>
+
+                        <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="3,1" Background="#3D4554" />
+
+                        <!-- ViewCube Projections -->
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Isometric View" Click="ResetView_Isometric">
+                            <Path Data="M 7 1 L 13 4.5 L 13 11.5 L 7 15 L 1 11.5 L 1 4.5 Z M 1 4.5 L 7 8 L 13 4.5 M 7 8 L 7 15" 
+                                  Stroke="#00E5FF" StrokeThickness="1.2" Width="14" Height="14" Stretch="Uniform" />
+                        </Button>
+
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Front / Elevation View" Click="ResetView_Front">
+                            <Grid Width="14" Height="14">
+                                <Rectangle Stroke="#00E5FF" StrokeThickness="1.2" Fill="#203040" Margin="1,4,1,4" />
+                                <Line X1="0" Y1="13" X2="14" Y2="13" Stroke="#00E5FF" StrokeThickness="1.4" />
+                            </Grid>
+                        </Button>
+
+                        <Button Style="{StaticResource NavIconButton}" ToolTip="Top / Plan View" Click="ResetView_Top">
+                            <Grid Width="14" Height="14">
+                                <Rectangle Stroke="#00E5FF" StrokeThickness="1.2" Fill="#203040" Margin="1" />
+                                <Ellipse Width="4" Height="4" Fill="#00E5FF" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Status / Hint Overlay -->
+                <TextBlock x:Name="ViewportStatusText" 
+                           Text="Select a clash to view 3D route" 
+                           Foreground="#8F9CAE" 
+                           FontWeight="Medium"
+                           FontSize="11" 
+                           HorizontalAlignment="Left" 
+                           VerticalAlignment="Bottom" 
+                           Margin="10" />
+            </Grid>
+        </Border>
+
+        <!-- Route Settings -->
+        <Border Grid.Row="6" Margin="0,4,0,0" Style="{StaticResource SectionBorder}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <GroupBox Header="Route Parameters (mm / degrees)" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="11" BorderBrush="{StaticResource AccentBrush}">
+                    <Grid Margin="4,2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="65" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Bend Radius (P1/P4) [mm]" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Column="1" Style="{StaticResource NumberBox}" Text="{Binding BendRadiusMm, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                        <TextBlock Grid.Row="1" Text="Bend Angle (deg)" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource NumberBox}" Text="{Binding BendAngleDegrees, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                        <TextBlock Grid.Row="2" Text="Middle Span (P2/P3) [mm]" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource NumberBox}" Text="{Binding OffsetSpanMm, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                        <TextBlock Grid.Row="3" Text="Clearance (mm)" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource NumberBox}" Text="{Binding TopClearanceMm, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                    </Grid>
+                </GroupBox>
+
+                <StackPanel Grid.Column="1" Margin="6,0,0,0" MinWidth="140">
+                    <GroupBox Header="Detour Direction" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" FontSize="11" BorderBrush="{StaticResource AccentBrush}">
+                        <StackPanel Margin="4,2">
+                            <RadioButton Content="Auto (from geometry)" GroupName="Direction" Style="{StaticResource DirectionRadio}" IsChecked="{Binding IsDirectionAuto, Mode=TwoWay}" />
+                            <RadioButton Content="Above the tray" GroupName="Direction" Style="{StaticResource DirectionRadio}" IsChecked="{Binding IsDirectionUp, Mode=TwoWay}" />
+                            <RadioButton Content="Below the tray" GroupName="Direction" Style="{StaticResource DirectionRadio}" IsChecked="{Binding IsDirectionDown, Mode=TwoWay}" />
+                        </StackPanel>
+                    </GroupBox>
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Content="Cancel" Style="{StaticResource ActionButton}" Command="{Binding CancelCommand}" ToolTip="Discard preview" />
+                        <Button Grid.Column="1" Content="Accept" Style="{StaticResource ActionButton}" Command="{Binding AcceptCommand}" ToolTip="Reroute selected" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Status Bar + Finish -->
+        <Grid Grid.Row="7" Margin="0,4,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource SectionBorder}" VerticalAlignment="Center">
+                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource AccentBrush}" TextTrimming="CharacterEllipsis" FontSize="11" VerticalAlignment="Center" />
+            </Border>
+            <Button Grid.Column="1" Content="FINISH" Width="90" Style="{StaticResource ActionButton}" Command="{Binding FinishCommand}" Margin="4,0,0,0" />
+        </Grid>
+    </Grid>
+</UserControl>

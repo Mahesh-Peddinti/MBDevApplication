@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+        <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+        <PlatformTarget>x64</PlatformTarget>
+        <ProjectGuid>{CD4C5B18-0F0D-4592-9717-89AB2CF16FED}</ProjectGuid>
+        <OutputType>Library</OutputType>
+        <AppDesignerFolder>Properties</AppDesignerFolder>
+        <RootNamespace>TheResolver</RootNamespace>
+        <AssemblyName>TheResolver</AssemblyName>
+        <TargetFramework>net47</TargetFramework>
+        <FileAlignment>512</FileAlignment>
+        <Deterministic>true</Deterministic>
+        <TargetFrameworkProfile />
+        <LangVersion>latest</LangVersion>
+        <NuGetPackageImportStamp>
+        </NuGetPackageImportStamp>
+        <Configurations>Debug;Release;R2020;R2021;R2022;R2023;R2024;R2025;R2026;R2027</Configurations>
+        <!-- Every configuration compiles WPF (the dockable pane is a
+             UserControl), so this must not be per-configuration: R2020-R2024
+             used to fail with CS0234/CS0246 on System.Windows.Media.Imaging. -->
+        <UseWPF>true</UseWPF>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+    
+    <!-- Debug/Release had no framework or Revit API reference at all, so a
+         plain "dotnet build" could not restore. They now mirror R2026. -->
+    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' or '$(Configuration)' == 'Release' ">
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <RevitVersion>2026</RevitVersion>
+        <DefineConstants>$(DefineConstants);R2026</DefineConstants>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'R2020|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\R2020\</OutputPath>
+        <DefineConstants>DEBUG;R2020</DefineConstants>
+        <TargetFramework>net47</TargetFramework>
+        <AssemblyName>$(AssemblyName)</AssemblyName>
+        <RevitVersion>2020</RevitVersion>
+        <LangVersion>latest</LangVersion>
+        <ErrorReport>prompt</ErrorReport>
+        <WarningLevel>4</WarningLevel>
+        <StartAction>Program</StartAction>
+        <StartProgram>$(ProgramW6432)\Autodesk\Revit 2020\Revit.exe</StartProgram>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+    
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'R2021|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\R2021\</OutputPath>
+        <DefineConstants>DEBUG;R2021</DefineConstants>
+        <TargetFramework>net48</TargetFramework>
+        <AssemblyName>$(AssemblyName)</AssemblyName>
+        <RevitVersion>2021</RevitVersion>
+        <WarningLevel>4</WarningLevel>
+        <LangVersion>latest</LangVersion>
+        <StartAction>Program</StartAction>
+        <StartProgram>$(ProgramW6432)\Autodesk\Revit 2021\Revit.exe</StartProgram>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+    
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'R2022|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\R2022\</OutputPath>
+        <DefineConstants>DEBUG;R2022</DefineConstants>
+        <TargetFramework>net48</TargetFramework>
+        <AssemblyName>$(AssemblyName)</AssemblyName>
+        <RevitVersion>2022</RevitVersion>
+        <WarningLevel>4</WarningLevel>
+        <LangVersion>latest</LangVersion>
+        <StartAction>Program</StartAction>
+        <StartProgram>$(ProgramW6432)\Autodesk\Revit 2022\Revit.exe</StartProgram>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+    
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'R2023|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\R2023\</OutputPath>
+        <DefineConstants>DEBUG;R2023</DefineConstants>
+        <TargetFramework>net48</TargetFramework>
+        <AssemblyName>$(AssemblyName)</AssemblyName>
+        <RevitVersion>2023</RevitVersion>
+        <WarningLevel>4</WarningLevel>
+        <LangVersion>latest</LangVersion>
+        <StartAction>Program</StartAction>
+        <StartProgram>$(ProgramW6432)\Autodesk\Revit 2023\Revit.exe</StartProgram>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'R2024|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\R2024\</OutputPath>
+        <DefineConstants>DEBUG;R2024</DefineConstants>
+        <TargetFramework>net48</TargetFramework>
+        <AssemblyName>$(AssemblyName)</AssemblyName>
+        <RevitVersion>2024</RevitVersion>
+        <WarningLevel>4</WarningLevel>
+        <LangVersion>latest</LangVersion>
+        <StartAction>Program</StartAction>
+        <StartProgram>$(ProgramW6432)\Autodesk\Revit 2024\Revit.exe</StartProgram>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'R2025|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\R2025\</OutputPath>
+        <DefineConstants>DEBUG;R2025</DefineConstants>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <AssemblyName>$(AssemblyName)</AssemblyName>
+        <RevitVersion>2025</RevitVersion>
+        <WarningLevel>4</WarningLevel>
+        <LangVersion>latest</LangVersion>
+        <StartAction>Program</StartAction>
+        <StartProgram>$(ProgramW6432)\Autodesk\Revit 2025\Revit.exe</StartProgram>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <UseWPF>true</UseWPF>
+    </PropertyGroup>
+    
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'R2026|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\R2026\</OutputPath>
+        <DefineConstants>DEBUG;R2026</DefineConstants>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <AssemblyName>$(AssemblyName)</AssemblyName>
+        <RevitVersion>2026</RevitVersion>
+        <WarningLevel>4</WarningLevel>
+        <LangVersion>latest</LangVersion>
+        <StartAction>Program</StartAction>
+        <StartProgram>$(ProgramW6432)\Autodesk\Revit 2026\Revit.exe</StartProgram>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <UseWPF>true</UseWPF>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'R2027|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>bin\R2027\</OutputPath>
+        <DefineConstants>DEBUG;R2027</DefineConstants>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <AssemblyName>$(AssemblyName)</AssemblyName>
+        <RevitVersion>2027</RevitVersion>
+        <WarningLevel>4</WarningLevel>
+        <LangVersion>latest</LangVersion>
+        <StartAction>Program</StartAction>
+        <StartProgram>$(ProgramW6432)\Autodesk\Revit 2027\Revit.exe</StartProgram>
+        <EnableDefaultEmbeddedResourseItems>false</EnableDefaultEmbeddedResourseItems>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <UseWPF>true</UseWPF>
+    </PropertyGroup>
+
+    <Choose>
+        <When Condition=" '$(Configuration)'=='R2020' ">
+            <ItemGroup>
+                <Reference Include="System" />
+                <Reference Include="System.Configuration" />
+                <Reference Include="System.Core" />
+                <Reference Include="PresentationFramework" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2020.0.0" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </When>
+        <When Condition=" '$(Configuration)'=='R2021' ">
+            <ItemGroup>
+                <Reference Include="System" />
+                <Reference Include="System.Configuration" />
+                <Reference Include="System.Core" />
+                <Reference Include="PresentationFramework" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2021.0.0" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </When>
+        <When Condition=" '$(Configuration)'=='R2022' ">
+            <ItemGroup>
+                <Reference Include="System" />
+                <Reference Include="System.Configuration" />
+                <Reference Include="System.Core" />
+                <Reference Include="PresentationFramework" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2022.0.0" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </When>
+        <When Condition=" '$(Configuration)'=='R2023' ">
+            <ItemGroup>
+                <Reference Include="System" />
+                <Reference Include="System.Configuration" />
+                <Reference Include="System.Core" />
+                <Reference Include="PresentationFramework" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2023.0.0" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </When>
+        <When Condition=" '$(Configuration)'=='R2024' ">
+            <ItemGroup>
+                <Reference Include="System" />
+                <Reference Include="System.Configuration" />
+                <Reference Include="System.Core" />
+                <Reference Include="PresentationFramework" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2024.0.0" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </When>
+        <When Condition=" '$(Configuration)'=='R2025' ">
+            <ItemGroup>
+                <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2025.0.0" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </When>
+        <When Condition=" '$(Configuration)'=='R2026' ">
+            <ItemGroup>
+                <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2026.0.0" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </When>
+        <When Condition=" '$(Configuration)'=='R2027' ">
+            <ItemGroup>
+                <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2027.0.2" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </When>
+        <Otherwise>
+            <ItemGroup>
+                <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+                <PackageReference Include="Revit_All_Main_Versions_API_x64" Version="2026.0.0" IncludeAssets="build; compile" PrivateAssets="All" />
+            </ItemGroup>
+        </Otherwise>
+    </Choose>
+
+    <ItemGroup>
+      <None Remove="Resources\ClashApplication_16.png" />
+      <None Remove="Resources\ClashApplication_32.png" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="AddInApplication.cs" />
+        <Compile Include="AddInCommand.cs" />
+		<Compile Include="Button\ImageLoader.cs" />
+		<Compile Include="Button\RibbonBuilder.cs" />
+		<Compile Include="Button\RibbonButtonFactory.cs" />
+		<Compile Include="Button\RibbonButtonInfo.cs" />
+		<Compile Include="Button\ShowResolverPane.cs" />
+		<Compile Include="DTOs\CategoryItem.cs" />
+		<Compile Include="DTOs\ClashModelItem.cs" />
+		<Compile Include="DTOs\ObstacleProjection.cs" />
+		<Compile Include="DTOs\ObstacleRegion.cs" />
+		<Compile Include="DTOs\RouteCandidate.cs" />
+		<Compile Include="DTOs\RouteType.cs" />
+		<Compile Include="ModelService.cs" />
+		<Compile Include="Properties\Resources.Designer.cs">
+		  <DesignTime>True</DesignTime>
+		  <AutoGen>True</AutoGen>
+		  <DependentUpon>Resources.resx</DependentUpon>
+		</Compile>
+		<Compile Include="Properties\Settings.Designer.cs">
+		  <DesignTimeSharedInput>True</DesignTimeSharedInput>
+		  <AutoGen>True</AutoGen>
+		  <DependentUpon>Settings.settings</DependentUpon>
+		</Compile>
+		<Compile Include="Routing\RouteCandidate.cs" />
+		<Compile Include="Routing\RouteCandidateFactory.cs" />
+		<Compile Include="Routing\RoutePlanner.cs" />
+		<Compile Include="Routing\RouteQuality.cs" />
+		<Compile Include="Routing\RouteType.cs" />
+		<Compile Include="Services\IModelSelectionService.cs" />
+		<Compile Include="Services\KinematicAStarSolver.cs" />
+		<Compile Include="Services\ObstacleRegionBuilder.cs" />
+		<Compile Include="Services\VoxelGrid3D.cs" />
+		<Compile Include="UI\ResolverDockablePane.cs" />
+		<Compile Include="UI\ResolverView.xaml.cs" />
+		<Compile Include="Utilities\LocalSpatialIndex.cs" />
+		<Compile Include="Utilities\RectInterval.cs" />
+		<Compile Include="Utilities\RevitMeshExtractor.cs" />
+		<Compile Include="ViewModel\ClashGridItemViewModel.cs" />
+		<Compile Include="ViewModel\ClashItemViewModel.cs" />
+		<Compile Include="ViewModel\ClashViewModel.cs" />
+		<Compile Include="ViewModel\MainViewModel.cs" />
+		<Compile Include="Services\ClashDetectionService.cs" />
+		<Compile Include="Services\ClashResolution.cs" />
+		<Compile Include="Services\ModelRequest.cs" />
+		<Compile Include="Services\ValidateNewRoute.cs" />
+		<Compile Include="Utilities\BuildCleanRoutePoints.cs" />
+		<Compile Include="Utilities\BuildTeeBypassRoutingPoints.cs" />
+		<Compile Include="Utilities\CreateNewBypassRoute.cs" />
+		<Compile Include="Utilities\GeometricUtilities.cs" />
+		<Compile Include="Utilities\RelayCommand.cs" />
+		<Compile Include="DTOs\ClashGroupInfoDTOs.cs" />
+		<Compile Include="DTOs\ClashInfoDTOs.cs" />
+		<Compile Include="DTOs\ClashSide.cs" />
+		<Compile Include="DTOs\PreviewRouteData.cs" />
+		<Compile Include="DTOs\RouteSettingDTOs.cs" />
+		<Compile Include="Commands\CableTrayClashResolver.cs" />
+		<Compile Include="Commands\ClashResolveTool.cs" />
+		<EmbeddedResource Include="Resources\ClashApplication_16.png" />
+		<EmbeddedResource Include="Resources\ClashApplication_32.png" />
+		<EmbeddedResource Include="Resources\ClashTool-16.png" />
+		<EmbeddedResource Include="Resources\ClashTool-32.png" />
+		<EmbeddedResource Include="Resources\ResolveTool-16.png" />
+		<EmbeddedResource Include="Resources\ResolveTool-32.png" />
+		<Compile Include="LogDetails\Logger.cs" />
+		<Compile Include="BusinessLogics\CalculatingLogics.cs" />
+		<Compile Include="BusinessLogics\ClashResolver.cs" />
+		<Compile Include="BusinessLogics\FindClashGroups.cs" />
+		<Compile Include="BusinessLogics\TryBuildConsolidatedBypassRouting.cs" />
+		<Compile Include="View\MainWindow.xaml.cs" />
+
+
+
+		<Content Include="TheResolver.addin">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+      <Folder Include="View\" />
+    </ItemGroup>
+    <ItemGroup>
+      <EmbeddedResource Update="Properties\Resources.resx">
+        <Generator>ResXFileCodeGenerator</Generator>
+        <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      </EmbeddedResource>
+    </ItemGroup>
+    <ItemGroup>
+      <None Update="Properties\Settings.settings">
+        <Generator>SettingsSingleFileGenerator</Generator>
+        <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+      </None>
+    </ItemGroup>
+    <Target Name="AfterClean">
+        <Delete Files="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\TheResolver.addin" />
+        <Delete Files="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\TheResolver.dll" />
+    </Target>
+	
+	
+	<!--
+	
+	 <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+        <Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)&quot; xcopy /Y /i &quot;$(TargetDir)$(TargetName).dll&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\$(ProjectName)\&quot;" />
+        <Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)&quot; xcopy /Y /i &quot;$(TargetDir)$(TargetName).addin&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)&quot;" />
+    </Target>
+	
+	-->   
+	
+	
+	<Target Name="PostBuild" AfterTargets="Build">
+
+		<PropertyGroup>
+			<RevitVersion>2026</RevitVersion>
+			<RevitAddinsFolder>
+				$(AppData)\Autodesk\Revit\Addins\$(RevitVersion)
+			</RevitAddinsFolder>
+		</PropertyGroup>
+
+		<MakeDir Directories="$(RevitAddinsFolder)" Condition="!Exists('$(RevitAddinsFolder)')" />
+
+		<Copy SourceFiles="$(TargetDir)$(AssemblyName).dll" DestinationFolder="$(RevitAddinsFolder)" SkipUnchangedFiles="true" />
+
+		<Copy SourceFiles="$(ProjectDir)TheResolver.addin" DestinationFolder="$(RevitAddinsFolder)" SkipUnchangedFiles="true" />
+
+	</Target>
+	
+
+
+	
+</Project>

@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "TheResolver": {
+      "commandName": "Project",
+      "remoteDebugEnabled": false,
+      "debugEngines": "managed-dotnet"
+    },
+    "Profile 1": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\Autodesk\\Revit 2026\\Revit.exe"
+    }
+  }
+}

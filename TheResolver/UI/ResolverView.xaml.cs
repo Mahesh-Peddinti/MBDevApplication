@@ -1,3 +1,4 @@
+using Autodesk.Revit.DB;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -5,36 +6,48 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using TheResolver.DTOs;
+using TheResolver.Utilities;
 using TheResolver.ViewModel;
+
+// Type Aliases to permanently eliminate CS0104 / CS1503 collisions
+using MediaBrush = System.Windows.Media.SolidColorBrush;
+using MediaColor = System.Windows.Media.Color;
+using RevitTransform = Autodesk.Revit.DB.Transform;
+using RevitXYZ = Autodesk.Revit.DB.XYZ;
+using WpfMaterial = System.Windows.Media.Media3D.Material;
+using WpfPoint = System.Windows.Point;
 
 namespace TheResolver.UI
 {
     public partial class ResolverView : UserControl
     {
-        // 1. Strongly-typed property avoiding namespace collision
         public ClashViewModel ClashVm { get; }
+        public ClashViewModel ViewModel => ClashVm;
 
-        private Point _lastMousePos;
+        private WpfPoint _lastMousePos;
         private bool _isOrbiting;
         private bool _isPanning;
         private Point3D _cameraTarget = new Point3D(0, 0, 0);
 
-        // Materials
-        private static readonly Material TrayMaterial 
-            = new DiffuseMaterial(new SolidColorBrush(Color.FromArgb(180, 100, 149, 237)));
-        private static readonly Material DetourMaterial 
-            = new DiffuseMaterial(new SolidColorBrush(Color.FromArgb(220, 76, 175, 80)));
-        private static readonly Material ClashMaterial 
-            = new DiffuseMaterial(new SolidColorBrush(Color.FromArgb(200, 229, 57, 53)));
-        private static readonly Material SecondaryMaterial 
-            = new DiffuseMaterial(new SolidColorBrush(Color.FromArgb(120, 158, 158, 158)));
+        // --- Materials ---
+        private static readonly WpfMaterial BaselineTrayMaterial = CreateLitMaterial(MediaColor.FromArgb(120, 80, 85, 95), 0);
+        private static readonly WpfMaterial ClashMaterial = CreateLitMaterial(MediaColor.FromArgb(235, 255, 60, 60), 40);
+        private static readonly WpfMaterial SecondaryMaterial = CreateLitMaterial(MediaColor.FromArgb(110, 110, 135, 160), 20);
+        private static readonly WpfMaterial SolvedRouteMaterial = CreateLitMaterial(MediaColor.FromArgb(255, 0, 229, 255), 70);
+        private static readonly WpfMaterial FittingJointMaterial = CreateLitMaterial(MediaColor.FromArgb(255, 255, 185, 0), 60);
 
-
-        // 2. Compatibility accessor for ResolverDockablePane.cs
-        public ClashViewModel ViewModel => ClashVm;
+        private static MaterialGroup CreateLitMaterial(MediaColor baseColor, double specularPower)
+        {
+            var grp = new MaterialGroup();
+            grp.Children.Add(new DiffuseMaterial(new MediaBrush(baseColor)));
+            if (specularPower > 0)
+            {
+                grp.Children.Add(new SpecularMaterial(new MediaBrush(MediaColor.FromArgb(160, 255, 255, 255)), specularPower));
+            }
+            return grp;
+        }
 
         public ResolverView()
         {
@@ -44,7 +57,6 @@ namespace TheResolver.UI
             ClashVm.PropertyChanged += OnViewModelPropertyChanged;
         }
 
-        // 3. Missing Click event handler for the DataGrid Header CheckBox
         private void HeaderSelectAll_Click(object sender, RoutedEventArgs e)
         {
             if (sender is CheckBox chk && ClashVm != null)
@@ -53,15 +65,14 @@ namespace TheResolver.UI
             }
         }
 
-
-        // --- 3D Scene Rendering ---
         private void Render3DScene()
         {
             if (SceneVisual == null) return;
             var group = new Model3DGroup();
 
             var data = ClashVm?.PreviewRouteData;
-            if (data?.RoutePoints == null || data.RoutePoints.Count < 2)
+            var currentClash = ClashVm?.SelectedClash?.ClashInfo;
+            if (data?.RoutePoints == null || data.RoutePoints.Count < 2 || currentClash?.Tray == null)
             {
                 ViewportStatusText.Text = data?.Message ?? "Select a clash to view 3D route";
                 SceneVisual.Content = null;
@@ -69,59 +80,164 @@ namespace TheResolver.UI
             }
             ViewportStatusText.Text = string.Empty;
 
-            double origTrayLength = data.TrayLengthMm;
-            double trayW = 300;
-            double trayH = 100;
+            // 1. Establish the Real World Center of the Clash Zone
+            if (!(currentClash.Tray.Location is LocationCurve lc) || !(lc.Curve is Autodesk.Revit.DB.Line trayLine))
+                return;
 
-            // 1. Render Baseline Tray (Ghost reference)
-            group.Children.Add(CreateBoxModel(new Point3D(0, -trayW * 0.5, -trayH * 0.5), new Size3D(origTrayLength, trayW, trayH), TrayMaterial));
+            RevitXYZ trayStart = trayLine.GetEndPoint(0);
+            RevitXYZ trayEnd = trayLine.GetEndPoint(1);
+            RevitXYZ trayDir = (trayEnd - trayStart).Normalize();
+            RevitXYZ trayLateral = trayDir.CrossProduct(RevitXYZ.BasisZ).Normalize();
 
-            // 2. Render Direct Clash Obstacle
-            if (data.ClashStationMaxMm > data.ClashStationMinMm)
+            // Center offset based on the clash intersection point
+            RevitXYZ clashCenter = currentClash.Intersection?.ComputeCentroid();
+            if (clashCenter == null)
             {
-                double cLen = Math.Max(20, data.ClashStationMaxMm - data.ClashStationMinMm);
-                double cHeight = Math.Max(20, data.ClashMaxElevationMm - data.ClashMinElevationMm);
-                group.Children.Add(CreateBoxModel(
-                    new Point3D(data.ClashStationMinMm, -trayW * 0.75, data.ClashMinElevationMm),
-                    new Size3D(cLen, trayW * 1.5, cHeight),
-                    ClashMaterial));
+                var bb = currentClash.ClashElement.get_BoundingBox(null);
+                clashCenter = bb != null ? (bb.Min + bb.Max) * 0.5 : (trayStart + trayEnd) * 0.5;
             }
 
-            // 3. Render Secondary Surrounding Obstacles
-            foreach (var sec in data.SecondaryObstacles)
+            double trayWidthMm = currentClash.Tray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_WIDTH_PARAM)?.AsDouble() * 304.8 ?? 300.0;
+            double trayHeightMm = currentClash.Tray.get_Parameter(BuiltInParameter.RBS_CABLETRAY_HEIGHT_PARAM)?.AsDouble() * 304.8 ?? 100.0;
+
+            // Compute active bypass station window
+            double minRouteStation = data.RoutePoints.Min(p => p.Station);
+            double maxRouteStation = data.RoutePoints.Max(p => p.Station);
+            double corridorMarginMm = 800.0; // Margin around the detour zone
+
+            double clipStartStation = Math.Max(0, minRouteStation - corridorMarginMm);
+            double clipEndStation = Math.Min(trayLine.Length * 304.8, maxRouteStation + corridorMarginMm);
+            double activeBypassSpanMm = clipEndStation - clipStartStation;
+
+            // 2. Render Host Cable Tray ONLY within the active clash window (Prevents 15m line squeeze)
+            RevitXYZ clipStartWorld = trayStart + (trayDir * (clipStartStation / 304.8));
+            RevitXYZ clipEndWorld = trayStart + (trayDir * (clipEndStation / 304.8));
+
+            Point3D basePtA = new Point3D((clipStartWorld.X - clashCenter.X) * 304.8,
+                                          (clipStartWorld.Y - clashCenter.Y) * 304.8,
+                                          (clipStartWorld.Z - clashCenter.Z) * 304.8);
+            Point3D basePtB = new Point3D((clipEndWorld.X - clashCenter.X) * 304.8,
+                                          (clipEndWorld.Y - clashCenter.Y) * 304.8,
+                                          (clipEndWorld.Z - clashCenter.Z) * 304.8);
+
+            group.Children.Add(CreateExtrudedSegment(basePtA, basePtB, trayWidthMm, trayHeightMm, BaselineTrayMaterial));
+
+            // 3. Render Primary Clashing Element Solid
+            var clashMesh = RevitMeshExtractor.ExtractElementMesh(currentClash.ClashElement, RevitTransform.Identity, clashCenter);
+            if (clashMesh.Positions.Count > 0)
             {
-                double sLen = Math.Max(20, sec.StationMaxMm - sec.StationMinMm);
-                double sHeight = Math.Max(20, sec.ElevationMaxMm - sec.ElevationMinMm);
-                group.Children.Add(CreateBoxModel(
-                    new Point3D(sec.StationMinMm, -trayW * 0.6, sec.ElevationMinMm),
-                    new Size3D(sLen, trayW * 1.2, sHeight),
-                    SecondaryMaterial));
+                group.Children.Add(new GeometryModel3D(clashMesh, ClashMaterial));
             }
 
-            // 4. Render All N Segments of the Multi-Pocket Route
+            // 4. Render Relevant Crossing Obstacles Only (Tightly Bounded Section Box)
+            var doc = currentClash.Tray.Document;
+            double corridorHalfWidth = (trayWidthMm * 0.5 + 400.0) / 304.8;
+            double corridorHalfHeight = (trayHeightMm + 600.0) / 304.8;
+
+            RevitXYZ bbMin = new RevitXYZ(
+                Math.Min(clipStartWorld.X, clipEndWorld.X) - corridorHalfWidth,
+                Math.Min(clipStartWorld.Y, clipEndWorld.Y) - corridorHalfWidth,
+                clashCenter.Z - corridorHalfHeight);
+
+            RevitXYZ bbMax = new RevitXYZ(
+                Math.Max(clipStartWorld.X, clipEndWorld.X) + corridorHalfWidth,
+                Math.Max(clipStartWorld.Y, clipEndWorld.Y) + corridorHalfWidth,
+                clashCenter.Z + corridorHalfHeight);
+
+            var outline = new Outline(bbMin, bbMax);
+            var bboxFilter = new BoundingBoxIntersectsFilter(outline);
+
+            var allowedCategories = new HashSet<BuiltInCategory>
+            {
+                BuiltInCategory.OST_DuctCurves,
+                BuiltInCategory.OST_DuctFitting,
+                BuiltInCategory.OST_PipeCurves,
+                BuiltInCategory.OST_PipeFitting,
+                BuiltInCategory.OST_CableTray,
+                BuiltInCategory.OST_CableTrayFitting,
+                BuiltInCategory.OST_Conduit,
+                BuiltInCategory.OST_ConduitFitting,
+                BuiltInCategory.OST_StructuralFraming
+            };
+
+            var nearbyElements = new FilteredElementCollector(doc)
+                .WherePasses(bboxFilter)
+                .WhereElementIsNotElementType()
+                .ToElements();
+
+            foreach (var elem in nearbyElements)
+            {
+                if (elem.Id == currentClash.Tray.Id || elem.Id == currentClash.ClashElement.Id)
+                    continue;
+
+                if (elem.Category == null) continue;
+
+                long catIdVal = elem.Category.Id.Value;
+                BuiltInCategory bic = (BuiltInCategory)catIdVal;
+                if (!allowedCategories.Contains(bic)) continue;
+
+                var elemBb = elem.get_BoundingBox(null);
+                if (elemBb == null) continue;
+
+                RevitXYZ elemCenter = (elemBb.Min + elemBb.Max) * 0.5;
+                double lateralDist = Math.Abs((elemCenter - trayStart).DotProduct(trayLateral));
+                if (lateralDist > corridorHalfWidth) continue;
+
+                var secMesh = RevitMeshExtractor.ExtractElementMesh(elem, RevitTransform.Identity, clashCenter);
+                if (secMesh.Positions.Count > 0)
+                {
+                    group.Children.Add(new GeometryModel3D(secMesh, SecondaryMaterial));
+                }
+            }
+
+            // 5. Convert Local Route (Station, Elevation) into Real 3D World Geometry
             for (int i = 0; i < data.RoutePoints.Count - 1; i++)
             {
                 var p0 = data.RoutePoints[i];
                 var p1 = data.RoutePoints[i + 1];
 
-                double segLen = Math.Sqrt(Math.Pow(p1.Station - p0.Station, 2) + Math.Pow(p1.Elevation - p0.Elevation, 2));
-                if (segLen < 1.0) continue;
+                RevitXYZ worldA = trayStart + (trayDir * (p0.Station / 304.8)) + new RevitXYZ(0, 0, p0.Elevation / 304.8);
+                RevitXYZ worldB = trayStart + (trayDir * (p1.Station / 304.8)) + new RevitXYZ(0, 0, p1.Elevation / 304.8);
 
-                var segModel = CreateExtrudedSegment(
-                    new Point3D(p0.Station, 0, p0.Elevation),
-                    new Point3D(p1.Station, 0, p1.Elevation),
-                    trayW, trayH, DetourMaterial);
+                Point3D ptA = new Point3D(
+                    (worldA.X - clashCenter.X) * 304.8,
+                    (worldA.Y - clashCenter.Y) * 304.8,
+                    (worldA.Z - clashCenter.Z) * 304.8);
 
-                group.Children.Add(segModel);
+                Point3D ptB = new Point3D(
+                    (worldB.X - clashCenter.X) * 304.8,
+                    (worldB.Y - clashCenter.Y) * 304.8,
+                    (worldB.Z - clashCenter.Z) * 304.8);
+
+                if ((ptB - ptA).Length < 1.0) continue;
+
+                group.Children.Add(CreateExtrudedSegment(ptA, ptB, trayWidthMm, trayHeightMm, SolvedRouteMaterial));
+
+                if (i > 0)
+                {
+                    group.Children.Add(CreateSphereModel(ptA, Math.Min(trayWidthMm, trayHeightMm) * 0.40, FittingJointMaterial));
+                }
             }
 
             SceneVisual.Content = group;
 
-            // Focus camera target at route midpoint
-            double midStation = (data.RoutePoints.First().Station + data.RoutePoints.Last().Station) * 0.5;
-            _cameraTarget = new Point3D(midStation, 0, data.RiseMm * 0.5);
+            // 6. Focus Camera Closely on Active Bypass
+            FrameCompoundBounds(group, activeBypassSpanMm);
         }
-        // --- Trigger the  3D Render on Selection ---
+
+        private void FrameCompoundBounds(Model3DGroup group, double bypassSpanMm)
+        {
+            _cameraTarget = new Point3D(0, 0, 0);
+
+            // Frame based strictly on the bypass region rather than full room/run
+            double effectiveSpan = Math.Max(1200.0, Math.Min(3500.0, bypassSpanMm));
+            double dist = effectiveSpan * 1.15;
+
+            ViewportCamera.Position = _cameraTarget + new Vector3D(dist * 0.75, -dist * 1.1, dist * 0.85);
+            ViewportCamera.LookDirection = _cameraTarget - ViewportCamera.Position;
+            ViewportCamera.UpDirection = new Vector3D(0, 0, 1);
+        }
+
         private void OnViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(ClashViewModel.PreviewRouteData))
@@ -130,36 +246,45 @@ namespace TheResolver.UI
             }
         }
 
-        // --- 3D Mesh Helpers ---
-        private static GeometryModel3D CreateBoxModel(Point3D origin, Size3D size, Material material)
+        private void AutoFitCamera(PreviewRouteData data)
         {
-            var mesh = new MeshGeometry3D();
-            Point3D p0 = origin;
-            Point3D p1 = new Point3D(origin.X + size.X, origin.Y, origin.Z);
-            Point3D p2 = new Point3D(origin.X + size.X, origin.Y + size.Y, origin.Z);
-            Point3D p3 = new Point3D(origin.X, origin.Y + size.Y, origin.Z);
-            Point3D p4 = new Point3D(origin.X, origin.Y, origin.Z + size.Z);
-            Point3D p5 = new Point3D(origin.X + size.X, origin.Y, origin.Z + size.Z);
-            Point3D p6 = new Point3D(origin.X + size.X, origin.Y + size.Y, origin.Z + size.Z);
-            Point3D p7 = new Point3D(origin.X, origin.Y + size.Y, origin.Z + size.Z);
-
-            AddQuad(mesh, p0, p1, p2, p3); // Bottom
-            AddQuad(mesh, p7, p6, p5, p4); // Top
-            AddQuad(mesh, p0, p4, p5, p1); // Front
-            AddQuad(mesh, p2, p6, p7, p3); // Back
-            AddQuad(mesh, p0, p3, p7, p4); // Left
-            AddQuad(mesh, p1, p5, p6, p2); // Right
-
-            return new GeometryModel3D(mesh, material);
+            if (data?.RoutePoints != null && data.RoutePoints.Count >= 2)
+            {
+                double span = data.RoutePoints.Max(p => p.Station) - data.RoutePoints.Min(p => p.Station);
+                FrameCompoundBounds(SceneVisual?.Content as Model3DGroup, span + 1600.0);
+            }
+            else
+            {
+                _cameraTarget = new Point3D(0, 0, 0);
+                double dist = 1800;
+                ViewportCamera.Position = _cameraTarget + new Vector3D(dist * 0.75, -dist * 1.1, dist * 0.85);
+                ViewportCamera.LookDirection = _cameraTarget - ViewportCamera.Position;
+                ViewportCamera.UpDirection = new Vector3D(0, 0, 1);
+            }
         }
 
-        private static GeometryModel3D CreateExtrudedSegment(Point3D p0, Point3D p1, double width, double height, Material mat)
+        // --- 3D Mesh Helpers ---
+        private static GeometryModel3D CreateExtrudedSegment(Point3D p0, Point3D p1, double width, double height, WpfMaterial mat)
         {
             var mesh = new MeshGeometry3D();
-            Vector3D dir = (p1 - p0);
+            Vector3D dir = p1 - p0;
+            if (dir.LengthSquared < 1e-4) return new GeometryModel3D();
             dir.Normalize();
-            Vector3D lateral = new Vector3D(0, 1, 0); // Along Y
-            Vector3D normal = Vector3D.CrossProduct(dir, lateral);
+
+            // World Up is +Z
+            Vector3D worldUp = new Vector3D(0, 0, 1);
+
+            // Lateral is perpendicular to Tray Run in the horizontal plane (Width)
+            Vector3D lateral = Vector3D.CrossProduct(dir, worldUp);
+            if (lateral.LengthSquared < 1e-4)
+            {
+                lateral = new Vector3D(0, 1, 0);
+            }
+            lateral.Normalize();
+
+            // Normal is perpendicular to both Run and Lateral (Height/Thickness)
+            Vector3D normal = Vector3D.CrossProduct(lateral, dir);
+            normal.Normalize();
 
             Vector3D wOffset = lateral * (width * 0.5);
             Vector3D hOffset = normal * (height * 0.5);
@@ -174,12 +299,51 @@ namespace TheResolver.UI
             Point3D c1 = p1 + wOffset + hOffset;
             Point3D d1 = p1 - wOffset + hOffset;
 
-            AddQuad(mesh, a0, b0, c0, d0); // Start cap
-            AddQuad(mesh, d1, c1, b1, a1); // End cap
-            AddQuad(mesh, a0, a1, b1, b0); // Bottom
-            AddQuad(mesh, d0, c0, c1, d1); // Top
-            AddQuad(mesh, a0, d0, d1, a1); // Left
-            AddQuad(mesh, b0, b1, c1, c0); // Right
+            AddQuad(mesh, a0, b0, c0, d0);
+            AddQuad(mesh, d1, c1, b1, a1);
+            AddQuad(mesh, a0, a1, b1, b0);
+            AddQuad(mesh, d0, c0, c1, d1);
+            AddQuad(mesh, a0, d0, d1, a1);
+            AddQuad(mesh, b0, b1, c1, c0);
+
+            return new GeometryModel3D(mesh, mat);
+        }
+
+        private static GeometryModel3D CreateSphereModel(Point3D center, double radius, WpfMaterial mat)
+        {
+            var mesh = new MeshGeometry3D();
+            int slices = 12;
+            int stacks = 8;
+
+            for (int i = 0; i <= stacks; i++)
+            {
+                double phi = Math.PI * i / stacks;
+                for (int j = 0; j <= slices; j++)
+                {
+                    double theta = 2.0 * Math.PI * j / slices;
+                    double x = radius * Math.Sin(phi) * Math.Cos(theta);
+                    double y = radius * Math.Sin(phi) * Math.Sin(theta);
+                    double z = radius * Math.Cos(phi);
+                    mesh.Positions.Add(new Point3D(center.X + x, center.Y + y, center.Z + z));
+                }
+            }
+
+            for (int i = 0; i < stacks; i++)
+            {
+                for (int j = 0; j < slices; j++)
+                {
+                    int p1 = (i * (slices + 1)) + j;
+                    int p2 = p1 + slices + 1;
+
+                    mesh.TriangleIndices.Add(p1);
+                    mesh.TriangleIndices.Add(p2);
+                    mesh.TriangleIndices.Add(p1 + 1);
+
+                    mesh.TriangleIndices.Add(p1 + 1);
+                    mesh.TriangleIndices.Add(p2);
+                    mesh.TriangleIndices.Add(p2 + 1);
+                }
+            }
 
             return new GeometryModel3D(mesh, mat);
         }
@@ -200,29 +364,57 @@ namespace TheResolver.UI
             mesh.TriangleIndices.Add(idx + 3);
         }
 
-        // --- Mouse Orbit, Pan, and Zoom Navigation ---
+        // --- Mouse Interaction ---
         private void Viewport_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.LeftButton == MouseButtonState.Pressed) _isOrbiting = true;
-            if (e.RightButton == MouseButtonState.Pressed || e.MiddleButton == MouseButtonState.Pressed) _isPanning = true;
             _lastMousePos = e.GetPosition(View3D);
+
+            if (e.RightButton == MouseButtonState.Pressed || e.MiddleButton == MouseButtonState.Pressed)
+            {
+                _isPanning = true;
+                _isOrbiting = false;
+            }
+            else if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                _isOrbiting = true;
+                _isPanning = false;
+            }
+
             View3D.CaptureMouse();
         }
 
         private void Viewport_MouseMove(object sender, MouseEventArgs e)
         {
             if (!_isOrbiting && !_isPanning) return;
-            Point currentPos = e.GetPosition(View3D);
+
+            WpfPoint currentPos = e.GetPosition(View3D);
             double dx = currentPos.X - _lastMousePos.X;
             double dy = currentPos.Y - _lastMousePos.Y;
+            _lastMousePos = currentPos;
 
-            if (_isOrbiting)
+            if (_isPanning)
             {
-                // Orbit camera around _cameraTarget
+                Vector3D look = ViewportCamera.LookDirection;
+                look.Normalize();
+
+                Vector3D right = Vector3D.CrossProduct(look, ViewportCamera.UpDirection);
+                right.Normalize();
+
+                Vector3D screenUp = Vector3D.CrossProduct(right, look);
+                screenUp.Normalize();
+
+                double panSpeed = (ViewportCamera.Position - _cameraTarget).Length * 0.0015;
+                Vector3D panDelta = (-right * dx + screenUp * dy) * panSpeed;
+
+                ViewportCamera.Position += panDelta;
+                _cameraTarget += panDelta;
+            }
+            else if (_isOrbiting)
+            {
                 Vector3D pos = ViewportCamera.Position - _cameraTarget;
                 double radius = pos.Length;
-                double theta = Math.Atan2(pos.Y, pos.X) - dx * 0.01;
-                double phi = Math.Asin(Math.Max(-0.95, Math.Min(0.95, pos.Z / radius))) + dy * 0.01;
+                double theta = Math.Atan2(pos.Y, pos.X) - dx * 0.008;
+                double phi = Math.Asin(Math.Max(-0.95, Math.Min(0.95, pos.Z / radius))) + dy * 0.008;
 
                 double x = radius * Math.Cos(phi) * Math.Cos(theta);
                 double y = radius * Math.Cos(phi) * Math.Sin(theta);
@@ -231,20 +423,6 @@ namespace TheResolver.UI
                 ViewportCamera.Position = _cameraTarget + new Vector3D(x, y, z);
                 ViewportCamera.LookDirection = _cameraTarget - ViewportCamera.Position;
             }
-            else if (_isPanning)
-            {
-                Vector3D look = ViewportCamera.LookDirection;
-                look.Normalize();
-                Vector3D right = Vector3D.CrossProduct(look, ViewportCamera.UpDirection);
-                right.Normalize();
-                Vector3D up = Vector3D.CrossProduct(right, look);
-
-                Vector3D pan = (-right * dx + up * dy) * 2.0;
-                ViewportCamera.Position += pan;
-                _cameraTarget += pan;
-            }
-
-            _lastMousePos = currentPos;
         }
 
         private void Viewport_MouseUp(object sender, MouseButtonEventArgs e)
@@ -256,76 +434,52 @@ namespace TheResolver.UI
 
         private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            double factor = e.Delta > 0 ? 0.85 : 1.15;
-            Vector3D look = ViewportCamera.Position - _cameraTarget;
-            ViewportCamera.Position = _cameraTarget + look * factor;
-        }           
+            double zoomFactor = e.Delta > 0 ? 0.85 : 1.18;
+            Vector3D offset = ViewportCamera.Position - _cameraTarget;
+            double currentDist = offset.Length;
 
-        
-        // --- Navigation Toolbar Actions ---
+            if (currentDist * zoomFactor < 80.0 && e.Delta > 0) return;
+            if (currentDist * zoomFactor > 25000.0 && e.Delta < 0) return;
 
-        private void Tool_ZoomIn(object sender, RoutedEventArgs e)
-        {
-            ApplyZoom(0.80);
+            ViewportCamera.Position = _cameraTarget + offset * zoomFactor;
         }
 
-        private void Tool_ZoomOut(object sender, RoutedEventArgs e)
-        {
-            ApplyZoom(1.25);
-        }
+        // --- Toolbar Actions ---
+        private void Tool_ZoomIn(object sender, RoutedEventArgs e) => ApplyZoom(0.80);
+        private void Tool_ZoomOut(object sender, RoutedEventArgs e) => ApplyZoom(1.25);
 
         private void ApplyZoom(double factor)
         {
             Vector3D look = ViewportCamera.Position - _cameraTarget;
-            if (look.Length * factor < 50) return; // Prevent zooming through target
+            if (look.Length * factor < 80) return;
             ViewportCamera.Position = _cameraTarget + look * factor;
         }
 
         private void Tool_FitView(object sender, RoutedEventArgs e)
         {
-            var data = ClashVm?.PreviewRouteData;
-            if (data == null || data.TrayLengthMm <= 0) return;
-
-            double clashCenter = (data.ClashStationMinMm + data.ClashStationMaxMm) * 0.5;
-            _cameraTarget = new Point3D(clashCenter, 0, data.RiseMm * 0.5);
-
-            double span = Math.Max(data.TrayLengthMm * 0.6, 2000);
-            ViewportCamera.Position = _cameraTarget + new Vector3D(span * 0.8, -span * 1.3, span * 0.9);
-            ViewportCamera.LookDirection = _cameraTarget - ViewportCamera.Position;
-            ViewportCamera.UpDirection = new Vector3D(0, 0, 1);
+            if (ClashVm?.PreviewRouteData != null)
+                AutoFitCamera(ClashVm.PreviewRouteData);
         }
 
-        private void Tool_OrbitHint(object sender, RoutedEventArgs e)
-        {
-            ViewportStatusText.Text = "Orbit Mode: Click & drag Left Mouse Button on 3D viewport.";
-        }
+        private void Tool_OrbitHint(object sender, RoutedEventArgs e) =>
+            ViewportStatusText.Text = "Left Click + Drag anywhere on canvas to Orbit.";
 
-        private void Tool_PanHint(object sender, RoutedEventArgs e)
-        {
-            ViewportStatusText.Text = "Pan Mode: Click & drag Right or Middle Mouse Button.";
-        }
-
-        // --- Camera Preset Projections ---
+        private void Tool_PanHint(object sender, RoutedEventArgs e) =>
+            ViewportStatusText.Text = "Right or Middle Click + Drag to Pan.";
 
         private void ResetView_Isometric(object sender, RoutedEventArgs e)
         {
-            var data = ClashVm?.PreviewRouteData;
-            double center = data != null ? (data.ClashStationMinMm + data.ClashStationMaxMm) * 0.5 : 0;
-            _cameraTarget = new Point3D(center, 0, data != null ? data.RiseMm * 0.5 : 0);
-
-            double dist = 2200;
-            ViewportCamera.Position = _cameraTarget + new Vector3D(dist * 0.8, -dist * 1.2, dist * 0.9);
+            _cameraTarget = new Point3D(0, 0, 0);
+            double dist = Math.Min(2500.0, Math.Max(1200.0, (ViewportCamera.Position - _cameraTarget).Length));
+            ViewportCamera.Position = _cameraTarget + new Vector3D(dist * 0.75, -dist * 1.1, dist * 0.85);
             ViewportCamera.LookDirection = _cameraTarget - ViewportCamera.Position;
             ViewportCamera.UpDirection = new Vector3D(0, 0, 1);
         }
 
         private void ResetView_Front(object sender, RoutedEventArgs e)
         {
-            var data = ClashVm?.PreviewRouteData;
-            double center = data != null ? (data.ClashStationMinMm + data.ClashStationMaxMm) * 0.5 : 0;
-            _cameraTarget = new Point3D(center, 0, data != null ? data.RiseMm * 0.5 : 0);
-
-            double dist = 2800;
+            _cameraTarget = new Point3D(0, 0, 0);
+            double dist = Math.Min(2500.0, Math.Max(1200.0, (ViewportCamera.Position - _cameraTarget).Length));
             ViewportCamera.Position = _cameraTarget + new Vector3D(0, -dist, 0);
             ViewportCamera.LookDirection = new Vector3D(0, 1, 0);
             ViewportCamera.UpDirection = new Vector3D(0, 0, 1);
@@ -333,11 +487,8 @@ namespace TheResolver.UI
 
         private void ResetView_Top(object sender, RoutedEventArgs e)
         {
-            var data = ClashVm?.PreviewRouteData;
-            double center = data != null ? (data.ClashStationMinMm + data.ClashStationMaxMm) * 0.5 : 0;
-            _cameraTarget = new Point3D(center, 0, data != null ? data.RiseMm * 0.5 : 0);
-
-            double dist = 3200;
+            _cameraTarget = new Point3D(0, 0, 0);
+            double dist = Math.Min(2800.0, Math.Max(1400.0, (ViewportCamera.Position - _cameraTarget).Length));
             ViewportCamera.Position = _cameraTarget + new Vector3D(0, 0, dist);
             ViewportCamera.LookDirection = new Vector3D(0, 0, -1);
             ViewportCamera.UpDirection = new Vector3D(0, 1, 0);
